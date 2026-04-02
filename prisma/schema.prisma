@@ -1,0 +1,180 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//
+// ─── USER & ROLE MANAGEMENT ───────────────────────────────────────────────
+//
+model User {
+  id        String     @id @default(uuid())
+  name      String
+  email     String     @unique
+  password  String
+  role      Role       @default(CLIENT)
+  phone     String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  createdById String?
+  createdBy   User?      @relation("UserCreator", fields: [createdById], references: [id])
+  createdUsers User[]    @relation("UserCreator")
+  createdClients Client[] @relation("ClientCreator")
+  projects  Project[]  @relation("ProjectManager")
+  clientProjects Project[] @relation("ClientProject")
+  tasks     Task[]     @relation("AssignedTasks")
+  notes     Note[]
+  Document  Document[]
+  requestsCreated Request[] @relation("RequestCreatedBy")
+  requestsReviewed Request[] @relation("RequestReviewedBy")
+  accessibleDocs Document[] @relation("DocumentViewers")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  ENGINEER
+  CLIENT
+}
+
+//
+// ─── CLIENTS & CONTACTS ───────────────────────────────────────────────────
+//
+model Client {
+  id          String    @id @default(uuid())
+  name        String
+  companyName String?
+  email       String?
+  phone       String?
+  address     String?
+  createdById String?
+  createdBy   User?     @relation("ClientCreator", fields: [createdById], references: [id])
+  projects    Project[]
+  contacts    Contact[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Contact {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?
+  phone     String?
+  position  String?
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+//
+// ─── PROJECT MANAGEMENT ───────────────────────────────────────────────────
+//
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  location    String?
+  startDate   DateTime?
+  endDate     DateTime?
+  status      ProjectStatus @default(PLANNING)
+  budget      Float         @default(0) // Total allocated budget
+  spent       Float         @default(0) // Total amount spent so far
+  clientId    String?
+  client      Client?       @relation(fields: [clientId], references: [id])
+  clientUserId String?
+  clientUser   User?         @relation("ClientProject", fields: [clientUserId], references: [id])
+  managerId   String?
+  manager     User?         @relation("ProjectManager", fields: [managerId], references: [id])
+  tasks       Task[]
+  documents   Document[]
+  notes       Note[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+//
+// ─── TASKS & ACTIVITIES ───────────────────────────────────────────────────
+//
+model Task {
+  id           String     @id @default(uuid())
+  title        String
+  description  String?
+  dueDate      DateTime?
+  status       TaskStatus @default(PENDING)
+  projectId    String?
+  project      Project?   @relation(fields: [projectId], references: [id])
+  assignedToId String?
+  assignedTo   User?      @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  BLOCKED
+}
+
+//
+// ─── DOCUMENT MANAGEMENT ─────────────────────────────────────────────────
+//
+model Document {
+  id           String   @id @default(uuid())
+  name         String
+  type         String?
+  url          String
+  uploadedById String?
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id])
+  projectId    String?
+  project      Project? @relation(fields: [projectId], references: [id])
+  allowedViewers User[] @relation("DocumentViewers")
+  uploadedAt   DateTime @default(now())
+}
+
+//
+// ─── NOTES / COMMUNICATIONS ──────────────────────────────────────────────
+//
+model Note {
+  id        String   @id @default(uuid())
+  content   String
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id])
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+//
+// ─── APPROVAL REQUESTS ─────────────────────────────────────────────────────
+//
+model Request {
+  id          String   @id @default(uuid())
+  type        String   // "ADD_PROJECT", "EDIT_PROJECT", "ADD_TASK", "EDIT_TASK"
+  payload     Json     // Store form data temporarily
+  status      String   @default("PENDING") // PENDING | APPROVED | DENIED
+  createdById String
+  createdBy   User     @relation("RequestCreatedBy", fields: [createdById], references: [id])
+  reviewedById String?  // Manager who reviewed
+  reviewedBy  User?    @relation("RequestReviewedBy", fields: [reviewedById], references: [id])
+  comment     String?  // Required when DENIED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Update User model to include request relations
+// Add these two lines to User model:
+// requestsCreated Request[] @relation("RequestCreatedBy")
+// requestsReviewed Request[] @relation("RequestReviewedBy")
