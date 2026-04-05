@@ -99,14 +99,6 @@ export async function POST(req: NextRequest) {
 
     const { role, id: userId } = user;
 
-    // Engineers and Clients can create requests
-    if (role !== "ENGINEER" && role !== "CLIENT") {
-      return NextResponse.json(
-        { error: "Only engineers and clients can submit requests" },
-        { status: 403 }
-      );
-    }
-
     const body = await req.json();
     const { type, payload } = body;
 
@@ -115,6 +107,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Missing required fields: type, payload" },
         { status: 400 }
+      );
+    }
+
+    // Validate request type and user role permissions
+    const allowedTypesForManager = ["ADD_PROJECT", "EDIT_PROJECT"];
+    const isManagerRequestingAllowedType = role === "MANAGER" && allowedTypesForManager.includes(type);
+
+    // Engineers, Clients, and Managers (for project requests) can create requests
+    if (role !== "ENGINEER" && role !== "CLIENT" && !isManagerRequestingAllowedType) {
+      return NextResponse.json(
+        { error: "Only engineers, clients, and managers (for project requests) can submit requests" },
+        { status: 403 }
       );
     }
 

@@ -41,6 +41,7 @@ interface RequestDetailsDialogProps {
   onOpenChange: (open: boolean) => void;
   onApprove?: (requestId: string, comment?: string) => Promise<void>;
   onDeny?: (requestId: string, comment: string) => Promise<void>;
+  canApprove?: boolean;
 }
 
 export function RequestDetailsDialog({
@@ -49,6 +50,7 @@ export function RequestDetailsDialog({
   onOpenChange,
   onApprove,
   onDeny,
+  canApprove = true,
 }: RequestDetailsDialogProps) {
   const [denyComment, setDenyComment] = useState("");
   const [approveComment, setApproveComment] = useState("");
@@ -257,6 +259,14 @@ export function RequestDetailsDialog({
                   </div>
                 </>
               )}
+              {!canApprove && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Only an admin can approve this request type.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           )}
 
@@ -290,7 +300,7 @@ export function RequestDetailsDialog({
 
               <Button
                 onClick={handleApprove}
-                disabled={isApproving || isDenying}
+                disabled={isApproving || isDenying || !canApprove}
                 className={request.type === 'CLIENT_CONTACT' ? "bg-blue-600 hover:bg-blue-700" : "bg-emerald-600 hover:bg-emerald-700"}
               >
                 {isApproving ? (

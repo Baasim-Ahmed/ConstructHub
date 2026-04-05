@@ -36,11 +36,15 @@ interface Request {
 
 export default function RequestsPage() {
   const role = useRole();
+  const currentRole = getDevRoleFromStorage();
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("PENDING");
+
+  // Use authenticated role if available, otherwise use dev role
+  const effectiveRole = role !== "CLIENT" ? role : currentRole;
 
   const fetchRequests = async () => {
     try {
@@ -98,6 +102,12 @@ export default function RequestsPage() {
       toast.error(err.message || "Failed to approve request");
       throw err;
     }
+  };
+
+  const canApproveRequest = (roleToCheck: string, requestType: string) => {
+    if (roleToCheck === "ADMIN") return true;
+    if (roleToCheck === "MANAGER" && requestType === "ADD_TASK") return true;
+    return false;
   };
 
   const handleDeny = async (requestId: string, comment: string) => {
@@ -251,6 +261,7 @@ export default function RequestsPage() {
         onOpenChange={setDialogOpen}
         onApprove={handleApprove}
         onDeny={handleDeny}
+        canApprove={selectedRequest ? canApproveRequest(effectiveRole, selectedRequest.type) : false}
       />
     </div>
   );

@@ -77,7 +77,7 @@ export function AddTaskModal({ open, onOpenChange, onSuccess, editTask }: AddTas
           toast.success('Edit task request submitted');
         } else {
           const res = await fetch(`/api/tasks/${editTask.id}`, {
-            method: 'PUT',
+            method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...dataToSubmit, updatedAt: new Date().toISOString() }),
           });
@@ -170,11 +170,16 @@ export function AddTaskModal({ open, onOpenChange, onSuccess, editTask }: AddTas
                       <SelectValue placeholder="Select user" />
                     </SelectTrigger>
                     <SelectContent>
-                      {users.filter(u => u.role === 'ENGINEER').map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.name}
-                        </SelectItem>
-                      ))}
+                        {users.filter(u => u.role === 'ENGINEER').map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.name}
+                          </SelectItem>
+                        ))}
+                        {users.filter(u => u.role === 'ENGINEER').length === 0 && (
+                          <SelectItem value="" disabled>
+                            No engineers available
+                          </SelectItem>
+                        )}
                     </SelectContent>
                   </Select>
                 </div>

@@ -52,9 +52,10 @@ export async function GET(req: Request) {
 
 // POST new project
 export async function POST(req: Request) {
-  // Only managers and admins can create projects
+  // Only admins can create projects directly.
+  // Managers must submit ADD_PROJECT requests for admin approval.
   const session = await getServerSessionOrNull(req as any);
-  const check = requireRole(session, ["MANAGER", "ADMIN"]);
+  const check = requireRole(session, ["ADMIN"]);
   if (!check.ok) return NextResponse.json({ error: check.message }, { status: check.code });
 
   try {

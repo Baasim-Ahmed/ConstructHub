@@ -22,7 +22,10 @@ export async function GET(req: Request) {
     // ADMIN sees all users
     where = {};
   } else if (role === 'MANAGER') {
-    where = { createdById: id };
+    // Managers should be able to assign tasks to any engineer and see clients.
+    // Restricting users to createdById was causing engineer dropdowns to be empty
+    // when the engineers were created by an admin or another manager.
+    where = { role: { in: ['ENGINEER', 'CLIENT'] } };
   }
 
   console.log(`[Users API] Role: ${role}, Filter:`, where);

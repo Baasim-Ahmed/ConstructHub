@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import type { Project, Client, User } from '@prisma/client';
 import { toast } from 'sonner';
+import { submitRequest } from '@/lib/requests';
 
 interface AddProjectModalProps {
   open: boolean;
@@ -86,21 +87,31 @@ export function AddProjectModal({ open, onOpenChange, onSuccess, editProject }: 
       };
 
       if (editProject) {
-        const res = await fetch(`/api/projects/${editProject.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...dataToSubmit, updatedAt: new Date().toISOString() }),
-        });
-        if (!res.ok) throw new Error('Failed to update project');
-        toast.success('Project updated successfully');
+        if (user?.role === 'MANAGER') {
+          await submitRequest('EDIT_PROJECT', { id: editProject.id, ...dataToSubmit });
+          toast.success('Project edit request submitted for admin approval');
+        } else {
+          const res = await fetch(`/api/projects/${editProject.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...dataToSubmit, updatedAt: new Date().toISOString() }),
+          });
+          if (!res.ok) throw new Error('Failed to update project');
+          toast.success('Project updated successfully');
+        }
       } else {
-        const res = await fetch('/api/projects', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(dataToSubmit),
-        });
-        if (!res.ok) throw new Error('Failed to add project');
-        toast.success('Project added successfully');
+        if (user?.role === 'MANAGER') {
+          await submitRequest('ADD_PROJECT', dataToSubmit);
+          toast.success('Project creation request submitted for admin approval');
+        } else {
+          const res = await fetch('/api/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dataToSubmit),
+          });
+          if (!res.ok) throw new Error('Failed to add project');
+          toast.success('Project added successfully');
+        }
       }
 
       onSuccess();
@@ -132,6 +143,16 @@ export function AddProjectModal({ open, onOpenChange, onSuccess, editProject }: 
           <DialogDescription>
             {editProject ? 'Update project information' : 'Enter project details to create a new record'}
           </DialogDescription>
+          {user?.role === 'MANAGER' && !editProject && (
+            <p className="text-sm text-amber-600 mt-2">
+              <strong>Note:</strong> As a manager, this project will be submitted for admin approval before being added to the system.
+            </p>
+          )}
+          {user?.role === 'MANAGER' && editProject && (
+            <p className="text-sm text-amber-600 mt-2">
+              <strong>Note:</strong> As a manager, project edits will be submitted for admin approval.
+            </p>
+          )}
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

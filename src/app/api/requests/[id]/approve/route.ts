@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSessionOrNull } from "@/lib/auth";
 
-// PATCH /api/requests/[id]/approve - Manager approves a request
+// PATCH /api/requests/[id]/approve - Approve a pending request
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -22,13 +22,14 @@ export async function PATCH(
 
     const { role, id: userId } = user;
 
-    // Only managers can approve requests
+    // Only admins and managers can approve requests.
     if (role !== "MANAGER" && role !== "ADMIN") {
       return NextResponse.json(
-        { error: "Only managers can approve requests" },
+        { error: "Only managers and admins can approve requests" },
         { status: 403 }
       );
     }
+
     const request = await prisma.request.findUnique({
       where: { id: requestId },
     });
@@ -37,6 +38,13 @@ export async function PATCH(
       return NextResponse.json(
         { error: "Request not found" },
         { status: 404 }
+      );
+    }
+
+    if (role === "MANAGER" && request.type !== "ADD_TASK") {
+      return NextResponse.json(
+        { error: "Managers may only approve task creation requests" },
+        { status: 403 }
       );
     }
 
