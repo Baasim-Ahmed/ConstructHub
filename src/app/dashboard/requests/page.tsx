@@ -106,7 +106,8 @@ export default function RequestsPage() {
 
   const canApproveRequest = (roleToCheck: string, requestType: string) => {
     if (roleToCheck === "ADMIN") return true;
-    if (roleToCheck === "MANAGER" && requestType === "ADD_TASK") return true;
+    if (roleToCheck === "MANAGER" && ["ADD_TASK", "EDIT_TASK", "ADD_DOCUMENT", "EDIT_DOCUMENT"].includes(requestType)) return true;
+    // Managers cannot approve project requests
     return false;
   };
 

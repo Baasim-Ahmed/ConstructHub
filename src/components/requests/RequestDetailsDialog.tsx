@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRole } from '@/hooks/useCurrentUser';
 import {
   Dialog,
   DialogContent,
@@ -50,8 +51,9 @@ export function RequestDetailsDialog({
   onOpenChange,
   onApprove,
   onDeny,
-  canApprove = true,
+  canApprove,
 }: RequestDetailsDialogProps) {
+  const role = useRole();
   const [denyComment, setDenyComment] = useState("");
   const [approveComment, setApproveComment] = useState("");
   const [isDenying, setIsDenying] = useState(false);
@@ -259,11 +261,13 @@ export function RequestDetailsDialog({
                   </div>
                 </>
               )}
-              {!canApprove && (
+              {typeof canApprove === 'boolean' && !canApprove && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Only an admin can approve this request type.
+                    {role === 'MANAGER' && ["ADD_PROJECT", "EDIT_PROJECT"].includes(request.type)
+                      ? "Only an admin can approve project requests."
+                      : "You do not have permission to approve this request type."}
                   </AlertDescription>
                 </Alert>
               )}

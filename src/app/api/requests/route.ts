@@ -27,12 +27,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(requests);
     }
 
-    // MANAGER sees PENDING requests from users THEY created
+    // MANAGER sees all PENDING requests for TASK, DOCUMENT, and PROJECT
     if (role === "MANAGER") {
       const requests = await prisma.request.findMany({
         where: {
           status: "PENDING",
-          createdBy: { createdById: userId } // Only requests from my team
+          OR: [
+            { type: { in: ["ADD_TASK", "EDIT_TASK", "ADD_DOCUMENT", "EDIT_DOCUMENT"] } },
+            { type: { in: ["ADD_PROJECT", "EDIT_PROJECT"] } },
+          ],
         },
         include: {
           createdBy: { select: { id: true, name: true, email: true, role: true } },
