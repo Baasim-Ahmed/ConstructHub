@@ -24,8 +24,8 @@ export const generateEstimationPDF = (result: EstimationResult, state: Estimator
 
     doc.setFontSize(10);
     doc.setTextColor(60, 60, 60);
-    doc.text(`Project Size: ${state.sqft} sqft`, 14, 50);
-    doc.text(`Base Rate: Rs. ${state.baseRate} / sqft`, 14, 56);
+    doc.text(`Project Size: ${state.areaInSqYd} sq yards`, 14, 50);
+    doc.text(`Rate per Sq Yard: Rs. ${state.ratePerSqYd}`, 14, 56);
     doc.text(`Labor Cost: ${formatCurrency(state.laborCost)}`, 14, 62);
     doc.text(`Profit Margin: ${state.profitMargin}%`, 14, 68);
 
@@ -66,7 +66,7 @@ export const generateEstimationPDF = (result: EstimationResult, state: Estimator
     doc.text('Total Material Cost:', labelX, finalY + 10);
     doc.text(formatCurrency(result.totalMaterialCost), valueX, finalY + 10);
 
-    doc.text('Base Cost (Labor + Sqft):', labelX, finalY + 18);
+    doc.text('Base Cost (Labor + SqYd):', labelX, finalY + 18);
     doc.text(formatCurrency(result.baseCost), valueX, finalY + 18);
 
     doc.text(`Profit Amount (${state.profitMargin}%):`, labelX, finalY + 26);

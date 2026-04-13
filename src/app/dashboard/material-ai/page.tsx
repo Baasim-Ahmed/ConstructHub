@@ -7,11 +7,9 @@ import { MaterialAI } from '@/lib/material-ai/recommendation-engine';
 import { ProjectSpecs, ScoredMaterial } from '@/lib/material-ai/types';
 
 import { ComparisonView } from '@/components/material-ai/ComparisonView';
-import { ManualEntryForm } from '@/components/material-ai/ManualEntryForm';
-
+import { MaterialDetailDialog } from '@/components/material-ai/MaterialDetailDialog';
 import { AddMaterialForm } from '@/components/material-ai/AddMaterialForm';
 import { Material } from '@/lib/material-ai/types';
-import { MaterialDetailDialog } from '@/components/material-ai/MaterialDetailDialog';
 
 export default function MaterialAIPage() {
     const [recommendations, setRecommendations] = useState<ScoredMaterial[]>([]);
@@ -36,11 +34,11 @@ export default function MaterialAIPage() {
             setIsAnalyzing(false);
         }, 800);
     };
-
     const handleAddCustomMaterial = (material: Material) => {
         MaterialAI.addMaterial(material);
         alert(`Successfully added ${material.name} to the AI brain! It will now be considered in future analyses.`);
     };
+
 
     const addToComparison = (material: ScoredMaterial) => {
         if (!comparisonList.find(m => m.id === material.id)) {
@@ -95,7 +93,6 @@ export default function MaterialAIPage() {
                     </div>
                     <div className="flex-shrink-0 flex gap-3">
                         <AddMaterialForm onAdd={handleAddCustomMaterial} />
-                        <ManualEntryForm />
                     </div>
                 </div>
             </div>

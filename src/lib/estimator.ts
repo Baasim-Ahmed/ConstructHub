@@ -1,5 +1,7 @@
 /**
  * Estimator utility functions for cost calculations
+ * All measurements are in Square Yards (SqYd)
+ * All rates are per Square Yard (per SqYd)
  */
 
 export interface Material {
@@ -9,15 +11,19 @@ export interface Material {
   quantity: number;
 }
 
+/**
+ * EstimatorState - All area measurements in Square Yards (SqYd)
+ * All rates are per Square Yard (per SqYd)
+ */
 export interface EstimatorState {
-  sqft: number;
-  laborCost: number;
-  autoLabor: boolean; // Toggle for auto calculation
-  laborRate: number; // Rate per sqft
-  laborCount: number; // Number of workers
-  profitMargin: number;
-  baseRate: number; // cost per sqft
-  projectDurationDays: number; // Duration in days for labor calc
+  areaInSqYd: number;               // Total area in Square Yards
+  laborCost: number;                // Total labor cost in PKR
+  autoLabor: boolean;               // Toggle for auto calculation
+  laborRatePerSqYd: number;         // Labor rate per SqYd
+  laborCount: number;               // Number of workers
+  profitMargin: number;             // Profit margin percentage (0-100)
+  ratePerSqYd: number;              // Construction rate per SqYd
+  projectDurationDays: number;      // Duration in days for labor calc
   bedroomCount: number;
   livingRoomCount: number;
   kitchenCount: number;
@@ -26,6 +32,9 @@ export interface EstimatorState {
   materials: Material[];
 }
 
+/**
+ * EstimationResult - All costs in PKR
+ */
 export interface EstimationResult {
   totalMaterialCost: number;
   baseCost: number;
@@ -58,11 +67,15 @@ export function calculateTotalMaterialCost(materials: Material[]): number {
 
 /**
  * Calculate project estimation
+ * Formula: Total Cost = (Area × Rate per SqYd) + Labor + Materials + Profit
+ * All calculations in SqYd units
  */
 export function calculateEstimate(state: EstimatorState): EstimationResult {
   const totalMaterialCost = calculateTotalMaterialCost(state.materials);
-  const sqftCost = state.sqft * state.baseRate;
-  const baseCost = sqftCost + state.laborCost + totalMaterialCost;
+  
+  // Base cost calculation: Area (in SqYd) × Rate (per SqYd)
+  const structureCost = state.areaInSqYd * state.ratePerSqYd;
+  const baseCost = structureCost + state.laborCost + totalMaterialCost;
 
   const profitAmount = (state.profitMargin / 100) * baseCost;
   const finalCost = baseCost + profitAmount;
@@ -84,12 +97,14 @@ export function calculateEstimate(state: EstimatorState): EstimationResult {
 
 /**
  * Validate estimator state
+ * Ensures all inputs are valid for SqYd-based calculations
  */
 export function validateEstimator(state: EstimatorState): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
-  if (state.sqft <= 0) {
-    errors.push('Square feet must be greater than 0');
+  // Area validation (in SqYd)
+  if (state.areaInSqYd <= 0) {
+    errors.push('Area must be greater than 0 SqYd');
   }
 
   if (state.laborCost < 0) {
@@ -100,8 +115,9 @@ export function validateEstimator(state: EstimatorState): { valid: boolean; erro
     errors.push('Profit margin must be between 0 and 100');
   }
 
-  if (state.baseRate < 0) {
-    errors.push('Base rate cannot be negative');
+  // Rate validation (per SqYd)
+  if (state.ratePerSqYd < 0) {
+    errors.push('Rate per SqYd cannot be negative');
   }
 
   if (state.materials.length === 0) {

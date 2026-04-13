@@ -34,14 +34,14 @@ import { LayoutTemplate } from "lucide-react";
 
 export default function EstimatorPage() {
   const [state, setState] = useState<EstimatorState>({
-    sqft: 0,
+    areaInSqYd: 0, // Changed from sqft
     laborCost: 0,
     autoLabor: true,
-    laborRate: 1000,
+    laborRatePerSqYd: 1000, // Changed from laborRate
     laborCount: 5,
     projectDurationDays: 180,
     profitMargin: 15,
-    baseRate: 500,
+    ratePerSqYd: 5000, // Changed from baseRate
     bedroomCount: 0,
     livingRoomCount: 0,
     kitchenCount: 0,
@@ -256,14 +256,14 @@ export default function EstimatorPage() {
       }
 
       // Auto-Calculate Labor Logic
-      if (newState.autoLabor && (field === 'sqft' || field === 'laborRate' || field === 'projectDurationDays' || field === 'laborCount' || field === 'autoLabor')) {
-        // Labor = Daily Rate * Count * Duration
-        newState.laborCost = (newState.laborRate || 0) * (newState.projectDurationDays || 0) * (newState.laborCount || 0);
+      if (newState.autoLabor && (field === 'areaInSqYd' || field === 'laborRatePerSqYd' || field === 'projectDurationDays' || field === 'laborCount' || field === 'autoLabor')) {
+        // Labor = Area in SqYd * Labor Rate per SqYd
+        newState.laborCost = (newState.areaInSqYd || 0) * (newState.laborRatePerSqYd || 0);
       }
 
       // If autoLabor was just turned ON
       if (field === 'autoLabor' && value === true) {
-        newState.laborCost = (newState.laborRate || 0) * (newState.projectDurationDays || 0) * (newState.laborCount || 0);
+        newState.laborCost = (newState.areaInSqYd || 0) * (newState.laborRatePerSqYd || 0);
       }
 
       return newState;
@@ -318,14 +318,14 @@ export default function EstimatorPage() {
 
   const handleReset = () => {
     setState({
-      sqft: 0,
+      areaInSqYd: 0,
       laborCost: 0,
       autoLabor: true,
-      laborRate: 1000,
+      laborRatePerSqYd: 1000,
       laborCount: 5,
       projectDurationDays: 180,
       profitMargin: 15,
-      baseRate: 500,
+      ratePerSqYd: 5000,
       bedroomCount: 0,
       livingRoomCount: 0,
       kitchenCount: 0,
@@ -428,25 +428,25 @@ export default function EstimatorPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="sqft">Area (Sq Yards / Sqft)</Label>
+                  <Label htmlFor="areaInSqYd">Area (Sq Yards)</Label>
                   <Input
-                    id="sqft"
+                    id="areaInSqYd"
                     type="number"
                     placeholder="Enter project size"
-                    value={state.sqft || ""}
-                    onChange={(e) => handleInputChange("sqft", e.target.value)}
+                    value={state.areaInSqYd || ""}
+                    onChange={(e) => handleInputChange("areaInSqYd", e.target.value)}
                     className="text-base"
                     min="0"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="baseRate">Base Rate (Rs.)</Label>
+                  <Label htmlFor="ratePerSqYd">Rate per Sq Yard (Rs.)</Label>
                   <Input
-                    id="baseRate"
+                    id="ratePerSqYd"
                     type="number"
-                    placeholder="Cost per unit"
-                    value={state.baseRate || ""}
-                    onChange={(e) => handleInputChange("baseRate", e.target.value)}
+                    placeholder="Cost per square yard"
+                    value={state.ratePerSqYd || ""}
+                    onChange={(e) => handleInputChange("ratePerSqYd", e.target.value)}
                     className="text-base"
                     min="0"
                   />
@@ -538,13 +538,13 @@ export default function EstimatorPage() {
                 {state.autoLabor && (
                   <>
                     <div className="space-y-2">
-                      <Label htmlFor="laborRate">Daily Labor Cost (Rs.)</Label>
+                      <Label htmlFor="laborRatePerSqYd">Labor Rate per Sq Yard (Rs.)</Label>
                       <Input
-                        id="laborRate"
+                        id="laborRatePerSqYd"
                         type="number"
-                        placeholder="e.g. 5000"
-                        value={state.laborRate || ""}
-                        onChange={(e) => handleInputChange("laborRate", e.target.value)}
+                        placeholder="e.g. 1000"
+                        value={state.laborRatePerSqYd || ""}
+                        onChange={(e) => handleInputChange("laborRatePerSqYd", e.target.value)}
                       />
                     </div>
                     <div className="space-y-2">
