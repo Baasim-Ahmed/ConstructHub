@@ -1,5 +1,7 @@
 node_modules/
 .next/
+ai_service/venv/
+ai_service/__pycache__/
 dist/
 build/
 *.log

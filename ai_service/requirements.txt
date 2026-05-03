@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+mediapipe
+ultralytics
+opencv-python
+cvzone
+pydantic
+requests
+python-multipart

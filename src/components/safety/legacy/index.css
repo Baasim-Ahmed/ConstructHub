@@ -1,0 +1,85 @@
+@import url("https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap");
+
+html,
+body,
+#root,
+.app,
+.content {
+  height: 100%;
+  width: 100%;
+  font-family: "Source Sans Pro", sans-serif;
+}
+button,
+input[type="submit"],
+input[type="reset"] {
+  background: none;
+  color: inherit;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  outline: inherit;
+}
+.drag-drop-box {
+  border: 2px dashed #ccc;
+  border-radius: 4px;
+  padding: 20px;
+  width: 100%;
+  text-align: center;
+  cursor: pointer;
+font-family: "Source Sans Pro", sans-serif;
+  /* Example font family */
+}
+
+.drag-drop-box:hover {
+background-color: #70d8bd;
+  /* Example hover background color */
+}
+
+.sidebar-wrapper {
+  height: 100vh;
+}
+.drag-drop-box span {
+  font-weight: bold;
+  /* Example bold text */
+  color: #333;
+  /* Example text color */
+}
+.VideoInput_input {
+  display: none;
+}
+.drag-drop-box:hover {
+  border-color: #888;
+}
+.app {
+  display: flex;
+  position: relative;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: #e0e0e0;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: #888;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+.pro-sidebar>.pro-sidebar-inner>.pro-sidebar-layout {
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  z-index: 101;
+}

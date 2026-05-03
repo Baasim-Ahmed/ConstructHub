@@ -5,11 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { Menu, X } from "lucide-react";
+import { Menu, ShieldCheck, X, type LucideIcon } from "lucide-react";
 
 interface NavLink {
   name: string;
   href: string;
+  icon?: LucideIcon;
+  isActive?: boolean;
   requiredRoles?: string[];
 }
 
@@ -50,6 +52,13 @@ const allLinks: NavLink[] = [
     href: "/dashboard/estimator",
     requiredRoles: ["MANAGER", "ENGINEER"],
   },
+  {
+    name: "Safety Detection",
+    href: "/safety",
+    icon: ShieldCheck,
+    isActive: false,
+    requiredRoles: ["ADMIN", "MANAGER", "ENGINEER", "CLIENT"],
+  },
   { name: "Documents", href: "/dashboard/documents" },
   {
     name: "Material AI",
@@ -72,10 +81,6 @@ export function Sidebar() {
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
-
-  useEffect(() => {
-    if (!isMobile) setOpen(false);
-  }, [isMobile]);
 
   if (loading) {
     return (
@@ -148,7 +153,10 @@ export function Sidebar() {
                 pathname === link.href ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold" : "text-sidebar-foreground"
               )}
             >
-              {link.name}
+              <span className="flex items-center gap-2">
+                {link.icon ? <link.icon className="h-4 w-4 shrink-0" /> : null}
+                <span>{link.name}</span>
+              </span>
             </Link>
           ))}
         </nav>
