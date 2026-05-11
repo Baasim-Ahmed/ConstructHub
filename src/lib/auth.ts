@@ -26,7 +26,7 @@ export async function getServerSessionOrNull(req?: NextRequest | undefined) {
     if (req) {
       // Try to read the NextAuth JWT from the request (works in route handlers)
       const token = (await getToken({
-        req: req as unknown as Request,
+        req,
         secret: process.env.NEXTAUTH_SECRET,
       })) as (JWT & { role?: UserRole }) | null;
       if (!token) return null;

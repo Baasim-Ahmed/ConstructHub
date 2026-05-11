@@ -174,6 +174,40 @@ model Request {
   updatedAt   DateTime @updatedAt
 }
 
+model MaterialCatalog {
+  id                      Int      @id @default(autoincrement())
+  name                    String
+  type                    String
+  applications            String[]
+  strengthMpa             Float    @map("strength_mpa")
+  durabilityYears         Int      @map("durability_years")
+  thermalConductivity     Float    @map("thermal_conductivity")
+  fireResistanceHours     Float    @map("fire_resistance_hours")
+  waterResistance         Int      @map("water_resistance")
+  ecoFriendlyScore        Int      @map("eco_friendly_score")
+  costPerUnit             Float    @map("cost_per_unit")
+  availability            Int
+  maintenanceRequirement  Int      @map("maintenance_requirement")
+  weatherHeat             Int      @map("weather_heat")
+  weatherCold             Int      @map("weather_cold")
+  weatherHumidity         Int      @map("weather_humidity")
+  weatherUv               Int      @map("weather_uv")
+  installationComplexity  Int      @map("installation_complexity")
+  supplierId              String   @map("supplier_id")
+  supplierName            String?  @map("supplier_name")
+  supplierRating          Float?   @map("supplier_rating")
+  sourceUrl               String?  @map("source_url")
+  cityAvailability        String[] @default([]) @map("city_availability")
+  unit                    String?
+  standardOrGrade         String?  @map("standard_or_grade")
+  dataQuality             String?  @map("data_quality")
+  lastUpdated             String?  @map("last_updated")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  @@map("material_catalog")
+}
+
 // Update User model to include request relations
 // Add these two lines to User model:
 // requestsCreated Request[] @relation("RequestCreatedBy")

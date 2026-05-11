@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { ProjectSpecs } from '@/lib/material-ai/types';
-import { Briefcase, DollarSign, Thermometer, Zap, Clock, Sun, CloudRain, Wind, Flame } from 'lucide-react';
+import { Briefcase, DollarSign, Thermometer, Zap, Sun, CloudRain, Wind, Flame } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
 interface SpecificationFormProps {
@@ -24,6 +24,8 @@ export function SpecificationForm({ onSubmit, isLoading }: SpecificationFormProp
     const [envCold, setEnvCold] = useState<number>(5);
     const [envHumidity, setEnvHumidity] = useState<number>(5);
     const [envUV, setEnvUV] = useState<number>(5);
+    const [envRain, setEnvRain] = useState<number>(5);
+    const [envWind, setEnvWind] = useState<number>(5);
     const [installTime, setInstallTime] = useState<'low' | 'high' | null>(null);
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -32,7 +34,14 @@ export function SpecificationForm({ onSubmit, isLoading }: SpecificationFormProp
             application_type: appType,
             budget_constraint: budget,
             min_strength_mpa: strength > 0 ? strength : undefined,
-            environmental_conditions: { heat: envHeat, cold: envCold, humidity: envHumidity, uv: envUV },
+            environmental_conditions: {
+                heat: envHeat,
+                cold: envCold,
+                humidity: envHumidity,
+                uv: envUV,
+                rain: envRain,
+                wind: envWind
+            },
             installation_time_constraint: installTime
         });
     };
@@ -169,6 +178,16 @@ export function SpecificationForm({ onSubmit, isLoading }: SpecificationFormProp
                                 <Flame className="h-4 w-4 text-yellow-500" />
                                 <Slider value={[envUV]} max={10} step={1} onValueChange={(v) => setEnvUV(v[0])} className="flex-1" />
                                 <Input type="number" min={1} max={10} value={envUV} onChange={e => setEnvUV(Number(e.target.value))} className="h-7 w-14 text-center p-1" />
+                            </div>
+                            <div className="grid grid-cols-[24px_1fr_60px] items-center gap-3">
+                                <CloudRain className="h-4 w-4 text-cyan-500" />
+                                <Slider value={[envRain]} max={10} step={1} onValueChange={(v) => setEnvRain(v[0])} className="flex-1" />
+                                <Input type="number" min={1} max={10} value={envRain} onChange={e => setEnvRain(Number(e.target.value))} className="h-7 w-14 text-center p-1" />
+                            </div>
+                            <div className="grid grid-cols-[24px_1fr_60px] items-center gap-3">
+                                <Wind className="h-4 w-4 text-slate-500" />
+                                <Slider value={[envWind]} max={10} step={1} onValueChange={(v) => setEnvWind(v[0])} className="flex-1" />
+                                <Input type="number" min={1} max={10} value={envWind} onChange={e => setEnvWind(Number(e.target.value))} className="h-7 w-14 text-center p-1" />
                             </div>
                         </div>
                     </div>

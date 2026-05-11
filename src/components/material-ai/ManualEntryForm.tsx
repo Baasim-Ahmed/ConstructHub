@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MaterialAI } from '@/lib/material-ai/recommendation-engine';
+import { createMaterialCatalogEntry } from '@/lib/material-ai/client';
 import { PlusCircle } from 'lucide-react';
-import { MATERIALS } from '@/lib/material-ai/data';
 
 export function ManualEntryForm() {
     const [open, setOpen] = useState(false);
@@ -16,38 +16,38 @@ export function ManualEntryForm() {
     const [type, setType] = useState('Concrete');
     const [cost, setCost] = useState(1000);
     const [strength, setStrength] = useState(25);
+    const [isSaving, setIsSaving] = useState(false);
 
-    const handleSave = () => {
-        // In a real app, this would POST to an API.
-        // For this demo, we add to the local session in the Engine (and potentially data.ts via file write if we were bold, 
-        // but let's stick to runtime session for safety).
+    const handleSave = async () => {
+        try {
+            setIsSaving(true);
 
-        // We push to the global MATERIALS array so the engine sees it on next predict
-        MATERIALS.push({
-            id: Date.now(),
-            name,
-            type,
-            applications: ['Structural'], // Default
-            strength_mpa: strength,
-            durability_years: 50, // Default and others...
-            thermal_conductivity: 1.5,
-            fire_resistance_hours: 2,
-            water_resistance: 8,
-            eco_friendly_score: 5,
-            cost_per_unit: cost,
-            availability: 10,
-            maintenance_requirement: 5,
-            weather_resistance: { heat: 5, cold: 5, humidity: 5, uv: 5 },
-            installation_complexity: 5,
-            supplier_id: 'MANUAL',
-        });
+            await createMaterialCatalogEntry({
+                name,
+                type,
+                applications: ['Structural'],
+                strength_mpa: strength,
+                durability_years: 50,
+                thermal_conductivity: 1.5,
+                fire_resistance_hours: 2,
+                water_resistance: 8,
+                eco_friendly_score: 5,
+                cost_per_unit: cost,
+                availability: 10,
+                maintenance_requirement: 5,
+                weather_resistance: { heat: 5, cold: 5, humidity: 5, uv: 5 },
+                installation_complexity: 5,
+                supplier_id: 'MANUAL',
+            });
 
-        // Trigger generic re-train or just let lazy load handle it?
-        // RecommendationEngine handles training lazily or we force it.
-        MaterialAI.trainModels(); // Force retrain to include new data
-
-        setOpen(false);
-        alert("Material added and model retrained!");
+            setOpen(false);
+            alert("Material added to the database.");
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Unable to save the material.";
+            alert(message);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -91,7 +91,9 @@ export function ManualEntryForm() {
                         <Label>Strength (MPa)</Label>
                         <Input type="number" value={strength} onChange={e => setStrength(Number(e.target.value))} />
                     </div>
-                    <Button onClick={handleSave} className="w-full">Save & Train Model</Button>
+                    <Button onClick={() => void handleSave()} className="w-full" disabled={isSaving}>
+                        {isSaving ? "Saving..." : "Save to Database"}
+                    </Button>
                 </div>
             </DialogContent>
         </Dialog>

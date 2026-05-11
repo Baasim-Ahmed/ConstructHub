@@ -1,8 +1,38 @@
+# Node / Next.js
 node_modules/
 .next/
-ai_service/venv/
-ai_service/__pycache__/
 dist/
 build/
-*.log
+coverage/
+*.tsbuildinfo
+
+# Environment files
 .env
+.env.*
+!.env.example
+
+# Logs and temp files
+*.log
+.tmp/
+tmp_tasks.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# Local service artifacts
+ai_service/venv/
+
+# Integrated safety module runtime artifacts
+modules/Safety-Detection-And-Productivity-Analysis/.venv/
+modules/Safety-Detection-And-Productivity-Analysis/.tools/
+modules/Safety-Detection-And-Productivity-Analysis/.pids/
+modules/Safety-Detection-And-Productivity-Analysis/logs/
+modules/Safety-Detection-And-Productivity-Analysis/node_modules/
+modules/Safety-Detection-And-Productivity-Analysis/build/
+modules/Safety-Detection-And-Productivity-Analysis/backend/results/
+modules/Safety-Detection-And-Productivity-Analysis/backend/uploads/
+modules/Safety-Detection-And-Productivity-Analysis/backend/.ultralytics/

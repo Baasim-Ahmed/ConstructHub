@@ -1,18 +1,57 @@
 import { Material, ProjectSpecs, ScoredMaterial } from './types';
-import { MATERIALS } from './data';
 import { RandomForestRegression as RandomForest } from 'ml-random-forest';
-import KNN from 'ml-knn';
 
-// --- Data Preparation & Helpers ---
-
-// Normalize value using min-max scaling to range [0, 1]
-// Standard min/max values derived from domain knowledge of dataset
 const NORMALIZATION_CONSTANTS = {
-    strength: { min: 0, max: 500 }, // MPa
-    durability: { min: 0, max: 100 }, // Years
-    cost: { min: 0, max: 1000000 }, // PKR
+    strength: { min: 0, max: 500 },
+    durability: { min: 0, max: 100 },
+    cost: { min: 0, max: 1000000 },
     eco: { min: 0, max: 10 },
     complexity: { min: 0, max: 10 }
+};
+
+const DEFAULT_ENVIRONMENT = {
+    heat: 5,
+    cold: 5,
+    humidity: 5,
+    uv: 5,
+    rain: 5,
+    wind: 5
+};
+
+const DEFAULT_CITIES = ['Karachi', 'Lahore', 'Islamabad', 'Rawalpindi', 'Faisalabad', 'Multan', 'Peshawar', 'Quetta'];
+const MAX_PREDICTION_CACHE_SIZE = 24;
+
+const SUPPLIER_META: Record<string, Partial<Material>> = {
+    SUP019: { supplier_name: 'Lucky Cement Limited', source_url: 'https://www.lucky-cement.com/products3/', standard_or_grade: 'SRC Cement', unit: 'PKR per m3 concrete estimate', data_quality: 'estimated', supplier_rating: 4.4 },
+    SUP020: { supplier_name: 'D.G. Khan Cement Company Limited', source_url: 'https://dgcement.com/products.html', standard_or_grade: 'SRC Cement', unit: 'PKR per m3 concrete estimate', data_quality: 'estimated', supplier_rating: 4.3 },
+    SUP021: { supplier_name: 'Fauji Cement Company Limited', source_url: 'https://fccl.com.pk/eng/products/', standard_or_grade: 'Low Heat Cement', unit: 'PKR per m3 concrete estimate', data_quality: 'estimated', supplier_rating: 4.2 },
+    SUP022: { supplier_name: 'Kohat Cement Company Limited', source_url: 'https://www.kohatcement.com/portland_cement.aspx', standard_or_grade: 'OPC Cement', unit: 'PKR per m3 concrete estimate', data_quality: 'estimated', supplier_rating: 4.0 },
+    SUP023: { supplier_name: 'Bestway Cement Limited', source_url: 'https://www.bestway.com.pk/', standard_or_grade: 'SRC Cement', unit: 'PKR per m3 concrete estimate', data_quality: 'estimated', supplier_rating: 4.3 },
+    SUP024: { supplier_name: 'Maple Leaf Cement Factory Limited', source_url: 'https://www.mapleleafcement.com/', standard_or_grade: 'White Cement', unit: 'PKR per bag/finish estimate', data_quality: 'estimated', supplier_rating: 4.2 },
+    SUP025: { supplier_name: 'Amreli Steels Limited', source_url: 'https://amrelisteels.com/products/', standard_or_grade: 'G-500W Rebar', unit: 'PKR per ton', data_quality: 'estimated', supplier_rating: 4.5 },
+    SUP026: { supplier_name: 'Ittehad Steel', source_url: 'https://ittehad.com.pk/products/', standard_or_grade: 'Grade 60 Rebar', unit: 'PKR per ton', data_quality: 'estimated', supplier_rating: 4.1 },
+    SUP027: { supplier_name: 'Agha Steel Industries', source_url: 'https://aghasteel.com/products-and-quality-controls/astm-a615/', standard_or_grade: 'ASTM A615 Grade 60', unit: 'PKR per ton', data_quality: 'estimated', supplier_rating: 4.2 },
+    SUP028: { supplier_name: 'Aisha Steel Mills Limited', source_url: 'https://www.aishasteel.com/', standard_or_grade: 'Galvanized Sheet', unit: 'PKR per ton', data_quality: 'estimated', supplier_rating: 4.0 },
+    SUP029: { supplier_name: 'Mughal Iron & Steel Industries Limited', source_url: 'https://mughalsteel.com.pk/', standard_or_grade: 'Grade 60 Rebar', unit: 'PKR per ton', data_quality: 'estimated', supplier_rating: 4.2 },
+    SUP030: { supplier_name: 'Shabbir Tiles and Ceramics Limited / STILE', source_url: 'https://www.stile.com.pk/about-us/', standard_or_grade: 'Porcelain/Vitrified Tile', unit: 'PKR per sqm', data_quality: 'estimated', supplier_rating: 4.1 },
+    SUP031: { supplier_name: 'Master Tiles and Ceramic Industries Limited', source_url: 'http://www.mastertiles.com/', standard_or_grade: 'Ceramic Tile', unit: 'PKR per sqm', data_quality: 'estimated', supplier_rating: 4.0 },
+    SUP032: { supplier_name: 'Ghani Value Glass Limited', source_url: 'https://ghanivalueglass.com/', standard_or_grade: 'Tempered/Double Glazed Glass', unit: 'PKR per sqm', data_quality: 'estimated', supplier_rating: 4.1 },
+    SUP033: { supplier_name: 'Tariq Glass Industries Limited', source_url: 'https://www.tariqglass.com/page/about-us', standard_or_grade: 'Float Glass', unit: 'PKR per sqm', data_quality: 'estimated', supplier_rating: 4.0 },
+    SUP034: { supplier_name: 'Berger Paints Pakistan Limited', source_url: 'https://shop.berger.com.pk/collections/exterior', standard_or_grade: 'Exterior Weather Coating', unit: 'PKR per pack', data_quality: 'estimated', supplier_rating: 4.2 }
+};
+
+type ScoreAnalysis = {
+    score: number;
+    confidence: number;
+    reasonDetails: string[];
+    warnings: string[];
+    breakdown: ScoredMaterial['breakdown'];
+};
+
+type FeedbackStats = {
+    useful: number;
+    notUseful: number;
+    selected: number;
 };
 
 function normalize(value: number, key: keyof typeof NORMALIZATION_CONSTANTS): number {
@@ -20,334 +59,615 @@ function normalize(value: number, key: keyof typeof NORMALIZATION_CONSTANTS): nu
     return Math.max(0, Math.min(1, (value - min) / (max - min)));
 }
 
-// Get all unique applications and material types for One-Hot Encoding
-const ALL_APPLICATIONS = Array.from(new Set(MATERIALS.flatMap(m => m.applications))).sort();
-const ALL_TYPES = Array.from(new Set(MATERIALS.map(m => m.type))).sort();
+function clampScore(value: number): number {
+    return Math.round(Math.max(0, Math.min(100, value)));
+}
 
-// --- Feature Extraction ---
-// Convert (ProjectSpecs + Material) -> Feature Vector
-function extractFeatures(specs: ProjectSpecs, material: Material): number[] {
-    // 1. One-Hot Encoding for Applications
-    // We create a feature for every possible application. 1 if material supports it, 0 otherwise.
-    // ALSO check if it matches the requested spec (double signal).
-    const appFeatures = ALL_APPLICATIONS.map(app =>
-        material.applications.includes(app) ? 1 : 0
-    );
+function getEnvironment(specs: ProjectSpecs) {
+    return {
+        ...DEFAULT_ENVIRONMENT,
+        ...specs.environmental_conditions
+    };
+}
 
-    // 2. One-Hot Encoding for Material Types
-    const typeFeatures = ALL_TYPES.map(type =>
-        material.type === type ? 1 : 0
-    );
+function createSpecsCacheKey(specs: ProjectSpecs): string {
+    return JSON.stringify({
+        ...specs,
+        material_types: specs.material_types ? [...specs.material_types].sort() : undefined,
+        environmental_conditions: getEnvironment(specs)
+    });
+}
 
-    // 3. Numeric Features (Normalized)
-    const normStrength = normalize(material.strength_mpa, 'strength');
-    const normDurability = normalize(material.durability_years, 'durability');
-    const normCost = normalize(material.cost_per_unit, 'cost');
-    const normEco = normalize(material.eco_friendly_score, 'eco');
-    const normComplexity = normalize(material.installation_complexity, 'complexity');
+function fitAgainstStress(resistance: number, stress: number): number {
+    return Math.max(0, Math.min(1, 1 - Math.max(0, stress - resistance) / 7));
+}
 
-    // 4. Requirements Delta (Difference between Spec and Material)
-    // Positive = Exceeds requirement (Good), Negative = Fails requirement (Bad)
-    // We stick to simple deltas here, let the model learn the non-linearities.
+function average(values: number[]): number {
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function weightedAverage(values: Array<{ value: number; weight: number }>): number {
+    const totalWeight = values.reduce((sum, item) => sum + item.weight, 0);
+    return values.reduce((sum, item) => sum + item.value * item.weight, 0) / totalWeight;
+}
+
+function includesText(value: string | undefined, needle: string | undefined): boolean {
+    if (!value || !needle) return false;
+    return value.toLowerCase().includes(needle.toLowerCase());
+}
+
+function enrichMaterial(material: Material): Material {
+    const meta = SUPPLIER_META[material.supplier_id] ?? {};
+
+    return {
+        ...meta,
+        ...material,
+        supplier_name: material.supplier_name ?? meta.supplier_name ?? material.supplier_id,
+        supplier_rating: material.supplier_rating ?? meta.supplier_rating ?? 3.5,
+        source_url: material.source_url ?? meta.source_url,
+        city_availability: material.city_availability ?? meta.city_availability ?? DEFAULT_CITIES,
+        unit: material.unit ?? meta.unit ?? inferUnit(material),
+        standard_or_grade: material.standard_or_grade ?? meta.standard_or_grade ?? inferStandard(material),
+        data_quality: material.data_quality ?? meta.data_quality ?? 'estimated',
+        last_updated: material.last_updated ?? '2026-05-10'
+    };
+}
+
+function inferUnit(material: Material): string {
+    if (material.type === 'Steel') return 'PKR per ton';
+    if (material.type === 'Glass' || material.type === 'Ceramic' || material.type === 'Coating') return 'PKR per sqm/pack estimate';
+    if (material.type === 'Concrete') return 'PKR per m3 estimate';
+    return 'PKR per unit estimate';
+}
+
+function inferStandard(material: Material): string {
+    const text = material.name.toLowerCase();
+    if (text.includes('grade 60')) return 'Grade 60';
+    if (text.includes('g-500')) return 'G-500W';
+    if (text.includes('src') || text.includes('sulphate')) return 'SRC';
+    if (text.includes('opc')) return 'OPC';
+    if (text.includes('porcelain')) return 'Porcelain';
+    if (text.includes('tempered')) return 'Tempered';
+    return 'General construction grade';
+}
+
+function scoreBudget(specs: ProjectSpecs, material: Material): number {
+    if (!specs.budget_constraint || specs.budget_constraint <= 0) return 75;
+    const ratio = material.cost_per_unit / specs.budget_constraint;
+    if (ratio <= 1) return 100;
+    if (ratio <= 1.15) return 70;
+    if (ratio <= 1.35) return 45;
+    return Math.max(0, 35 - (ratio - 1.35) * 25);
+}
+
+function scoreApplicationFit(specs: ProjectSpecs, material: Material): number {
+    if (specs.material_types?.length) {
+        const matchesType = specs.material_types.some(type => type.toLowerCase() === material.type.toLowerCase());
+        if (!matchesType) return 5;
+    }
+
+    if (!material.applications.includes(specs.application_type)) return 10;
+
+    const env = getEnvironment(specs);
+    const wetExposure = Math.max(env.humidity, env.rain);
+
+    if (specs.application_type === 'Roofing' && wetExposure >= 8) {
+        if (material.type === 'Bitumen' || material.type === 'Coating') return 100;
+        if (material.type === 'Steel' && material.water_resistance >= 7) return 88;
+        if (material.water_resistance >= 9) return 82;
+        return 70;
+    }
+
+    if (['Facade', 'Windows', 'Doors'].includes(specs.application_type) && (wetExposure >= 8 || env.uv >= 8)) {
+        const envelopeFit = average([
+            fitAgainstStress(material.weather_resistance.uv, env.uv),
+            fitAgainstStress(material.weather_resistance.humidity, env.humidity),
+            fitAgainstStress(material.water_resistance, env.rain)
+        ]);
+        return clampScore(75 + envelopeFit * 25);
+    }
+
+    return 100;
+}
+
+function scorePerformance(specs: ProjectSpecs, material: Material): number {
+    const checks: number[] = [];
+    const env = getEnvironment(specs);
+    const wetExposure = Math.max(env.humidity, env.rain);
+
+    if (specs.min_strength_mpa) checks.push(Math.min(100, (material.strength_mpa / specs.min_strength_mpa) * 100));
+    if (specs.fire_resistance_requirement) checks.push(Math.min(100, (material.fire_resistance_hours / specs.fire_resistance_requirement) * 100));
+    if (specs.water_resistance_requirement) checks.push(Math.min(100, (material.water_resistance / specs.water_resistance_requirement) * 100));
+    if (!specs.water_resistance_requirement && wetExposure >= 8 && ['Foundation', 'Roofing', 'Facade', 'Windows', 'Doors'].includes(specs.application_type)) {
+        checks.push(material.water_resistance * 10);
+    }
+    if (env.uv >= 8 && ['Roofing', 'Facade', 'Windows', 'Doors'].includes(specs.application_type)) {
+        checks.push(material.weather_resistance.uv * 10);
+    }
+    if (specs.thermal_requirement === 'low') checks.push(material.thermal_conductivity <= 1 ? 100 : Math.max(30, 100 - material.thermal_conductivity * 20));
+    if (specs.thermal_requirement === 'high') checks.push(material.thermal_conductivity >= 1 ? 90 : 55);
+    if (specs.installation_time_constraint === 'low') checks.push((11 - material.installation_complexity) * 10);
+    if (checks.length === 0) return material.strength_mpa >= 50 ? 80 : 65;
+    return clampScore(average(checks));
+}
+
+function scoreEnvironment(specs: ProjectSpecs, material: Material): number {
+    const env = getEnvironment(specs);
+    const heatFit = fitAgainstStress(material.weather_resistance.heat, env.heat);
+    const coldFit = fitAgainstStress(material.weather_resistance.cold, env.cold);
+    const humidityFit = fitAgainstStress(material.weather_resistance.humidity, env.humidity);
+    const uvFit = fitAgainstStress(material.weather_resistance.uv, env.uv);
+    const rainFit = fitAgainstStress(material.water_resistance, env.rain);
+    const windFit = fitAgainstStress(Math.min(10, material.strength_mpa / 50), env.wind);
+    const wetExposure = Math.max(env.humidity, env.rain);
+
+    const baseScore = weightedAverage([
+        { value: heatFit, weight: env.heat >= 8 ? 1.2 : 0.9 },
+        { value: coldFit, weight: env.cold >= 8 ? 1.1 : 0.7 },
+        { value: humidityFit, weight: wetExposure >= 8 ? 1.7 : 1.0 },
+        { value: uvFit, weight: env.uv >= 8 ? 1.5 : 0.9 },
+        { value: rainFit, weight: wetExposure >= 8 ? 2.1 : 1.1 },
+        { value: windFit, weight: env.wind >= 8 ? 1.3 : 0.6 }
+    ]) * 100;
+
+    const highStressPenalty = [
+        { fit: heatFit, stress: env.heat },
+        { fit: coldFit, stress: env.cold },
+        { fit: humidityFit, stress: env.humidity },
+        { fit: uvFit, stress: env.uv },
+        { fit: rainFit, stress: env.rain },
+        { fit: windFit, stress: env.wind }
+    ].reduce((penalty, item) => {
+        if (item.stress < 8 || item.fit >= 0.7) return penalty;
+        return penalty + (0.7 - item.fit) * 28;
+    }, 0);
+
+    return clampScore(baseScore - highStressPenalty);
+}
+
+function scoreDurability(specs: ProjectSpecs, material: Material): number {
+    const durabilityTarget = specs.min_durability_years ?? 50;
+    const durabilityFit = Math.min(100, (material.durability_years / durabilityTarget) * 100);
+    const maintenanceFit = (11 - material.maintenance_requirement) * 10;
+    return clampScore(durabilityFit * 0.7 + maintenanceFit * 0.3);
+}
+
+function scoreAvailability(specs: ProjectSpecs, material: Material): number {
+    const cityFit = specs.project_city
+        ? material.city_availability?.some(city => city.toLowerCase() === specs.project_city?.toLowerCase()) ? 100 : 55
+        : 80;
+    return clampScore(material.availability * 7 + cityFit * 0.3);
+}
+
+function scoreStandards(specs: ProjectSpecs, material: Material): number {
+    if (!specs.required_standard_or_grade) return 75;
+    const standard = specs.required_standard_or_grade;
+    if (includesText(material.standard_or_grade, standard) || includesText(material.name, standard)) return 100;
+    return 35;
+}
+
+function scoreSustainability(specs: ProjectSpecs, material: Material): number {
+    const base = material.eco_friendly_score * 10;
+    if (!specs.eco_friendly_requirement) return base;
+    return material.eco_friendly_score >= specs.eco_friendly_requirement
+        ? Math.max(base, 90)
+        : Math.max(15, base - (specs.eco_friendly_requirement - material.eco_friendly_score) * 12);
+}
+
+function scoreContextualAdjustment(specs: ProjectSpecs, material: Material, environmentScore: number): number {
+    const env = getEnvironment(specs);
+    const wetExposure = Math.max(env.humidity, env.rain);
+
+    if (specs.application_type === 'Roofing' && wetExposure >= 8) {
+        if (material.type === 'Bitumen') return 8;
+        if (material.type === 'Coating') return 5;
+        if (material.type === 'Concrete') return -5;
+        if (environmentScore < 75) return -4;
+    }
+
+    if (Math.max(env.heat, env.cold, env.humidity, env.uv, env.rain, env.wind) >= 8 && environmentScore < 65) {
+        return -6;
+    }
+
+    return 0;
+}
+
+function scoreConfidence(specs: ProjectSpecs, material: Material): number {
+    const fields = [
+        material.supplier_name,
+        material.source_url,
+        material.unit,
+        material.standard_or_grade,
+        material.last_updated,
+        material.city_availability?.length ? 'cities' : '',
+        material.cost_per_unit > 0 ? 'cost' : '',
+        material.applications.length ? 'applications' : ''
+    ];
+    const completeness = fields.filter(Boolean).length / fields.length;
+    const qualityScore = material.data_quality === 'verified' ? 1 : material.data_quality === 'estimated' ? 0.78 : 0.45;
+    const sourceScore = material.source_url ? 1 : 0.55;
+    const requirementScore = [
+        specs.application_type,
+        specs.budget_constraint,
+        specs.project_city,
+        specs.min_strength_mpa,
+        specs.min_durability_years,
+        specs.required_standard_or_grade,
+        specs.environmental_conditions
+    ].filter(Boolean).length / 7;
+
+    return clampScore((completeness * 0.35 + qualityScore * 0.3 + sourceScore * 0.2 + requirementScore * 0.15) * 100);
+}
+
+function buildReasons(specs: ProjectSpecs, material: Material, breakdown: ScoredMaterial['breakdown']): { reasons: string[]; warnings: string[] } {
+    const reasons: string[] = [];
+    const warnings: string[] = [];
+    const env = getEnvironment(specs);
+
+    if (breakdown.application >= 100) reasons.push(`matches ${specs.application_type} use`);
+    if (breakdown.budget && breakdown.budget >= 90) reasons.push('fits well within the selected budget');
+    if (breakdown.performance && breakdown.performance >= 85) reasons.push(`meets key performance needs (${material.strength_mpa} MPa strength)`);
+    if (breakdown.environment && breakdown.environment >= 85) reasons.push('is suitable for the selected environmental stress profile');
+    if (breakdown.durability >= 80) reasons.push(`offers strong durability with ${material.durability_years} year estimated life`);
+    if (breakdown.availability && breakdown.availability >= 80) reasons.push('has strong market availability');
+    if (breakdown.standards && breakdown.standards >= 95 && specs.required_standard_or_grade) reasons.push(`matches ${specs.required_standard_or_grade} requirement`);
+    if (material.maintenance_requirement <= 3) reasons.push('has low maintenance demand');
+    if (material.data_quality === 'estimated') reasons.push('uses estimated market data suitable for early-stage planning');
+
+    if (breakdown.budget && breakdown.budget < 50) warnings.push('over budget for the selected limit');
+    if (fitAgainstStress(material.weather_resistance.humidity, env.humidity) < 0.7) warnings.push('low humidity resistance for this site condition');
+    if (fitAgainstStress(material.water_resistance, env.rain) < 0.7) warnings.push('low rain/water resistance for this site condition');
+    if (material.fire_resistance_hours < (specs.fire_resistance_requirement ?? 0)) warnings.push('below requested fire resistance');
+    if (!material.source_url) warnings.push('supplier source data is incomplete');
+    if (breakdown.standards && breakdown.standards < 50 && specs.required_standard_or_grade) warnings.push('does not clearly match the requested standard or grade');
+
+    return { reasons, warnings };
+}
+
+function getWeights(specs: ProjectSpecs) {
+    const env = getEnvironment(specs);
+    const highEnvironmentStress = Math.max(env.heat, env.cold, env.humidity, env.uv, env.rain, env.wind) >= 8;
+    const costWeight = specs.price_sensitivity === 'high' ? 0.23 : specs.price_sensitivity === 'low' ? 0.1 : 0.16;
+    const performanceWeight = specs.price_sensitivity === 'high' ? 0.17 : 0.22;
+
+    return {
+        application: 0.16,
+        budget: highEnvironmentStress ? costWeight * 0.85 : costWeight,
+        performance: highEnvironmentStress ? Math.max(0.19, performanceWeight) : performanceWeight,
+        environment: highEnvironmentStress ? 0.29 : 0.18,
+        durability: 0.12,
+        availability: highEnvironmentStress ? 0.07 : 0.09,
+        supplier: highEnvironmentStress ? 0.04 : 0.06,
+        standards: 0.05,
+        sustainability: 0.05
+    };
+}
+
+function analyzeMaterial(specs: ProjectSpecs, material: Material): ScoreAnalysis {
+    const application = scoreApplicationFit(specs, material);
+    const budget = scoreBudget(specs, material);
+    const performance = scorePerformance(specs, material);
+    const environment = scoreEnvironment(specs, material);
+    const durability = scoreDurability(specs, material);
+    const availability = scoreAvailability(specs, material);
+    const supplier = clampScore((material.supplier_rating ?? 3.5) * 20);
+    const standards = scoreStandards(specs, material);
+    const sustainability = scoreSustainability(specs, material);
+    const maintenance = clampScore((11 - material.maintenance_requirement) * 10);
+    const contextualAdjustment = scoreContextualAdjustment(specs, material, environment);
+    const weights = getWeights(specs);
+
+    const weightedScore =
+        application * weights.application +
+        budget * weights.budget +
+        performance * weights.performance +
+        environment * weights.environment +
+        durability * weights.durability +
+        availability * weights.availability +
+        supplier * weights.supplier +
+        standards * weights.standards +
+        sustainability * weights.sustainability;
+    const totalWeight = Object.values(weights).reduce((sum, value) => sum + value, 0);
+
+    const breakdown: ScoredMaterial['breakdown'] = {
+        application,
+        strength: material.strength_mpa,
+        durability,
+        cost: budget,
+        eco: material.eco_friendly_score,
+        weather: environment,
+        budget,
+        performance,
+        environment,
+        availability,
+        supplier,
+        standards,
+        sustainability,
+        maintenance,
+        confidence: scoreConfidence(specs, material)
+    };
+
+    const { reasons, warnings } = buildReasons(specs, material, breakdown);
+    const adjustedScore = weightedScore / totalWeight + contextualAdjustment;
+
+    return {
+        score: application < 50 ? Math.min(35, adjustedScore) : clampScore(adjustedScore),
+        confidence: breakdown.confidence ?? 70,
+        reasonDetails: reasons,
+        warnings,
+        breakdown
+    };
+}
+
+function generateReason(material: Material, specs: ProjectSpecs, analysis: ScoreAnalysis): string {
+    const topReasons = analysis.reasonDetails.slice(0, 4);
+    if (topReasons.length === 0) return `Potential match for ${specs.application_type}.`;
+    return `Recommended for ${specs.application_type} because it ${topReasons.join(', ')}.`;
+}
+
+function extractFeatures(
+    specs: ProjectSpecs,
+    material: Material,
+    applications: string[],
+    materialTypes: string[],
+    analysis?: ScoreAnalysis
+): number[] {
+    const resolvedAnalysis = analysis ?? analyzeMaterial(specs, material);
+    const appFeatures = applications.map(app => material.applications.includes(app) ? 1 : 0);
+    const typeFeatures = materialTypes.map(type => material.type === type ? 1 : 0);
+    const env = getEnvironment(specs);
     const reqStrength = specs.min_strength_mpa ? normalize(specs.min_strength_mpa, 'strength') : 0;
-    const strengthDelta = normStrength - reqStrength;
-
-    // 5. Context Features
-    // Is this a structural project? (1/0)
-    const isStructural = specs.application_type === 'Structural' ? 1 : 0;
-    // Is the user budget constrained? (1/0)
-    const isBudgetConstrained = specs.budget_constraint ? 1 : 0;
-
-    // 6. Application Match Check (The "Hard Filter" signal)
-    const exactAppMatch = material.applications.includes(specs.application_type) ? 1 : 0;
 
     return [
         ...appFeatures,
         ...typeFeatures,
-        normStrength,
-        normDurability,
-        normCost,
-        normEco,
-        normComplexity,
-        strengthDelta,
-        isStructural,
-        isBudgetConstrained,
-        exactAppMatch
+        normalize(material.strength_mpa, 'strength'),
+        normalize(material.durability_years, 'durability'),
+        normalize(material.cost_per_unit, 'cost'),
+        normalize(material.eco_friendly_score, 'eco'),
+        normalize(material.installation_complexity, 'complexity'),
+        normalize(material.strength_mpa, 'strength') - reqStrength,
+        specs.application_type === 'Structural' ? 1 : 0,
+        specs.budget_constraint ? 1 : 0,
+        material.applications.includes(specs.application_type) ? 1 : 0,
+        env.heat / 10,
+        env.cold / 10,
+        env.humidity / 10,
+        env.uv / 10,
+        env.rain / 10,
+        env.wind / 10,
+        (resolvedAnalysis.breakdown.budget ?? 0) / 100,
+        (resolvedAnalysis.breakdown.performance ?? 0) / 100,
+        (resolvedAnalysis.breakdown.environment ?? 0) / 100,
+        (resolvedAnalysis.breakdown.availability ?? 0) / 100,
+        (resolvedAnalysis.breakdown.standards ?? 0) / 100,
+        (resolvedAnalysis.breakdown.confidence ?? 0) / 100
     ];
 }
 
-// --- Heuristic Scoring (The Expert Teacher) ---
-function heuristicScore(specs: ProjectSpecs, material: Material): number {
-    // CRITICAL: Hard Filter for Application Mismatch
-    if (!material.applications.includes(specs.application_type)) {
-        return 10; // Fail score
-    }
-
-    let score = 0;
-
-    // Base Weights
-    const W = {
-        appMatch: 40,
-        cost: 20,
-        performance: 20,
-        eco: 10,
-        bonuses: 10
-    };
-
-    // 1. Application Match (Base)
-    score += W.appMatch;
-
-    // 2. Context-Specific Weighting (Humanized Logic)
-
-    // "Structural" -> Priority on Strength
-    if (specs.application_type === 'Structural' || specs.application_type === 'Foundation') {
-        if (material.strength_mpa > (specs.min_strength_mpa || 30)) {
-            score += 15; // Bonus for high strength
-        }
-    }
-
-    // "Facade" / "Roofing" -> Priority on Weather Resistance
-    if (specs.application_type === 'Facade' || specs.application_type === 'Roofing') {
-        const avgWeather = (material.weather_resistance.heat + material.weather_resistance.uv + material.water_resistance) / 3;
-        if (avgWeather > 7) {
-            score += 15; // Bonus for weather resilience
-        }
-    }
-
-    // 3. Cost-Benefit Tradeoff
-    // If budget is constrained, prioritize Durability + Low Maintenance
-    if (specs.budget_constraint) {
-        if (material.cost_per_unit <= specs.budget_constraint) {
-            score += W.cost; // Within budget
-
-            // Value Bonus: High Durability (>=50y) & Low Maintenance (<=3)
-            if (material.durability_years >= 50 && material.maintenance_requirement <= 3) {
-                score += 10;
-            }
-        } else {
-            // Over budget penalty
-            score -= 20;
-        }
-    } else {
-        // No budget constraint -> Pure performance focus
-        // We still add points for reasonable cost to avoid recommending gold-plated items excessively
-        score += 5;
-    }
-
-    // 4. Sustainability
-    score += material.eco_friendly_score; // Direct add (0-10)
-
-    // 5. Installation Priority
-    if (specs.installation_time_constraint === 'high') {
-        // Prefer low complexity
-        if (material.installation_complexity <= 4) score += 10;
-    }
-
-    return Math.min(100, Math.max(0, score + Math.random() * 3)); // Reduced noise
-}
-
-// --- Reason Generator ---
-function generateReason(material: Material, specs: ProjectSpecs): string {
-    const reasons: string[] = [];
-
-    // primary: application fit
-    reasons.push(material.applications.includes(specs.application_type)
-        ? `Great fit for ${specs.application_type}`
-        : `Potential match for ${specs.application_type}`
-    );
-
-    // context specific
-    if (specs.application_type === 'Structural' && material.strength_mpa > 50) {
-        reasons.push(`offers high structural strength (${material.strength_mpa} MPa)`);
-    }
-
-    if (specs.budget_constraint && material.cost_per_unit < specs.budget_constraint) {
-        reasons.push("fits well within your budget");
-        if (material.durability_years > 50) {
-            reasons.push("provides excellent long-term durability");
-        }
-    }
-
-    if (material.eco_friendly_score >= 8) {
-        reasons.push("is highly eco-friendly");
-    }
-
-    if (specs.installation_time_constraint === 'high' && material.installation_complexity <= 4) {
-        reasons.push("allows for rapid installation");
-    }
-
-    // Join nicely
-    if (reasons.length === 1) return reasons[0] + ".";
-    return reasons[0] + " because it " + reasons.slice(1).join(" and ") + ".";
-}
-
-// --- The Engine Class ---
-class RecommendationEngine {
-    private rfModel: any; // RandomForest
-    private knnModel: any; // KNN
-    private isTrained: boolean = false;
+export class RecommendationEngine {
+    private rfModel!: InstanceType<typeof RandomForest>;
+    private isTrained = false;
     private currentMaterials: Material[] = [];
+    private allApplications: string[] = [];
+    private allTypes: string[] = [];
+    private similarityIndex = new Map<number, number[]>();
+    private predictionCache = new Map<string, ScoredMaterial[]>();
+    private feedback = new Map<number, FeedbackStats>();
 
-    constructor() {
-        this.currentMaterials = [...MATERIALS]; // Initialize with default data
+    constructor(materials: Material[]) {
+        this.currentMaterials = materials.map(enrichMaterial);
+        this.refreshFeatureCatalog();
         this.trainModels();
     }
 
     public addMaterial(material: Material) {
-        // Assign a new ID if not present
-        if (!material.id) {
+        const enriched = enrichMaterial(material);
+        if (!enriched.id) {
             const maxId = Math.max(...this.currentMaterials.map(m => m.id), 0);
-            material.id = maxId + 1;
+            enriched.id = maxId + 1;
         }
-        this.currentMaterials.push(material);
-        this.isTrained = false; // Invalidate model
-        this.trainModels(); // Retrain immediately
+
+        this.currentMaterials.push(enriched);
+        this.refreshFeatureCatalog();
+        this.predictionCache.clear();
+        this.isTrained = false;
+        this.trainModels();
     }
 
     public trainModels() {
-        console.log("Training Material AI Models (Refactored)...");
+        if (this.currentMaterials.length === 0) {
+            this.isTrained = false;
+            return;
+        }
 
-        // Use currentMaterials instead of const MATERIALS
-        const dataset = this.currentMaterials;
-
+        console.log("Training Material AI Models (Optimized Hybrid Scoring)...");
         const X: number[][] = [];
         const y: number[] = [];
 
-        // Balanced Training Generation (50/50)
-        for (let i = 0; i < 500; i++) {
-            const randomMaterial = dataset[Math.floor(Math.random() * dataset.length)];
-            const isPositive = Math.random() > 0.5;
-
-            let randomApp: string;
-            if (isPositive) {
-                randomApp = randomMaterial.applications[Math.floor(Math.random() * randomMaterial.applications.length)];
-            } else {
-                do {
-                    randomApp = ALL_APPLICATIONS[Math.floor(Math.random() * ALL_APPLICATIONS.length)];
-                } while (randomMaterial.applications.includes(randomApp));
+        for (const material of this.currentMaterials) {
+            for (const specs of this.buildTrainingSpecs(material)) {
+                const analysis = analyzeMaterial(specs, material);
+                X.push(extractFeatures(specs, material, this.allApplications, this.allTypes, analysis));
+                y.push(analysis.score);
             }
-
-            const randomSpecs: ProjectSpecs = {
-                application_type: randomApp,
-                min_strength_mpa: Math.random() * 200,
-                budget_constraint: Math.random() > 0.3 ? Math.random() * 100000 : undefined,
-                environmental_conditions: { heat: 5, cold: 5, humidity: 5, uv: 5 },
-                installation_time_constraint: Math.random() > 0.5 ? 'high' : 'low'
-            };
-
-            X.push(extractFeatures(randomSpecs, randomMaterial));
-            y.push(heuristicScore(randomSpecs, randomMaterial));
         }
 
-        const options = {
-            seed: 42,
-            maxFeatures: 0.8,
-            replacement: true,
-            nEstimators: 50
-        };
-        this.rfModel = new RandomForest(options);
-        this.rfModel.train(X, y);
-
-        // KNN Init (Normalized)
-        const knnFeatures = dataset.map(m => [
-            normalize(m.strength_mpa, 'strength'),
-            normalize(m.durability_years, 'durability'),
-            normalize(m.cost_per_unit, 'cost'),
-            normalize(m.eco_friendly_score, 'eco')
-        ]);
-        const knnLabels = dataset.map(m => m.id);
-        this.knnModel = new KNN(knnFeatures, knnLabels, { k: 3 });
-
-        this.isTrained = true;
+        try {
+            this.rfModel = new RandomForest({
+                seed: 42,
+                maxFeatures: 0.75,
+                replacement: true,
+                nEstimators: 36
+            });
+            this.rfModel.train(X, y);
+            this.isTrained = true;
+        } catch (error) {
+            console.error("[MaterialAI] Model training failed, falling back to heuristic scoring.", error);
+            this.isTrained = false;
+        }
     }
 
     public predict(specs: ProjectSpecs): ScoredMaterial[] {
+        if (this.currentMaterials.length === 0) return [];
         if (!this.isTrained) this.trainModels();
-        const dataset = this.currentMaterials;
 
-        let predictions = dataset.map(material => {
-            const features = extractFeatures(specs, material);
-            const score = Math.round(this.rfModel.predict([features])[0]);
+        const cacheKey = createSpecsCacheKey(specs);
+        const cached = this.predictionCache.get(cacheKey);
+        if (cached) return cached;
+
+        const predictions = this.currentMaterials.map(material => {
+            const expert = analyzeMaterial(specs, material);
+            const modelScore = this.isTrained
+                ? Math.round(this.rfModel.predict([extractFeatures(specs, material, this.allApplications, this.allTypes, expert)])[0])
+                : expert.score;
+            const feedbackBoost = this.getFeedbackBoost(material.id);
+            const score = clampScore(expert.score * 0.78 + modelScore * 0.22 + feedbackBoost);
 
             return {
                 ...material,
                 match_score: score,
-                ml_confidence: 0.9,
-                reason: generateReason(material, specs), // Add human reason
-                breakdown: {
-                    application: material.applications.includes(specs.application_type) ? 100 : 0,
-                    strength: material.strength_mpa,
-                    durability: material.durability_years,
-                    cost: material.cost_per_unit,
-                    eco: material.eco_friendly_score,
-                    weather: 8
-                }
+                ml_confidence: expert.confidence,
+                reason: generateReason(material, specs, expert),
+                reason_details: expert.reasonDetails,
+                warnings: expert.warnings,
+                breakdown: expert.breakdown
             };
+        }).sort((a, b) => {
+            if (b.match_score !== a.match_score) return b.match_score - a.match_score;
+            if (b.ml_confidence !== a.ml_confidence) return b.ml_confidence - a.ml_confidence;
+            return (b.breakdown.availability ?? 0) - (a.breakdown.availability ?? 0);
         });
 
-        // Sustainability Tie-Breaker
-        // Sort first by score descending
-        predictions.sort((a, b) => b.match_score - a.match_score);
-
-        // Post-sort refinement: Swap adjacent items if scores are close (<5 diff) but lower item has better Eco
-        for (let i = 0; i < predictions.length - 1; i++) {
-            const current = predictions[i];
-            const next = predictions[i + 1];
-
-            const scoreDiff = current.match_score - next.match_score;
-
-            // If scores are very close (within 5%) and next has significantly better Eco
-            if (scoreDiff < 5 && next.eco_friendly_score > current.eco_friendly_score) {
-                // Swap
-                predictions[i] = next;
-                predictions[i + 1] = current;
-            }
-        }
-
+        this.rememberPrediction(cacheKey, predictions);
         return predictions;
     }
 
-    // Updated Find Similar (Using Weighted Euclidean on Normalized Data)
     public findSimilar(materialId: number): Material[] {
-        const dataset = this.currentMaterials;
-        const target = dataset.find(m => m.id === materialId);
+        const target = this.currentMaterials.find(m => m.id === materialId);
         if (!target) return [];
 
-        const targetFeatures = [
-            normalize(target.strength_mpa, 'strength'),
-            normalize(target.durability_years, 'durability'),
-            normalize(target.cost_per_unit, 'cost'),
-            normalize(target.eco_friendly_score, 'eco')
-        ];
+        const targetFeatures = this.similarityIndex.get(target.id) ?? this.buildSimilarityVector(target);
+        const weights = [1.0, 1.0, 1.5, 0.8, 0.7, 0.6];
 
-        // Weights: Cost=1.5, Strength=1, Durability=1, Eco=0.8
-        const weights = [1.0, 1.0, 1.5, 0.8];
-
-        const distances = dataset.map(m => {
-            const feat = [
-                normalize(m.strength_mpa, 'strength'),
-                normalize(m.durability_years, 'durability'),
-                normalize(m.cost_per_unit, 'cost'),
-                normalize(m.eco_friendly_score, 'eco')
-            ];
-
-            let dist = 0;
-            for (let i = 0; i < 4; i++) {
-                dist += weights[i] * Math.pow(feat[i] - targetFeatures[i], 2);
-            }
-            return { material: m, dist: Math.sqrt(dist) };
-        });
-
-        return distances
-            .filter(d => d.material.id !== target.id)
-            .sort((a, b) => a.dist - b.dist)
+        return this.currentMaterials
+            .filter(material => material.id !== target.id)
+            .map(material => {
+                const features = this.similarityIndex.get(material.id) ?? this.buildSimilarityVector(material);
+                const distance = features.reduce(
+                    (total, value, index) => total + weights[index] * Math.pow(value - targetFeatures[index], 2),
+                    0
+                );
+                return { material, distance: Math.sqrt(distance) };
+            })
+            .sort((a, b) => a.distance - b.distance)
             .slice(0, 3)
-            .map(d => d.material);
+            .map(item => item.material);
     }
 
-    public learn(specs: ProjectSpecs, materialId: number, score: number) {
-        console.log(`[MaterialAI] Learning interaction: ${materialId} -> ${score}`);
+    public learn(_specs: ProjectSpecs, materialId: number, score: number) {
+        const current = this.feedback.get(materialId) ?? { useful: 0, notUseful: 0, selected: 0 };
+        if (score >= 90) current.selected += 1;
+        else if (score > 0) current.useful += 1;
+        else current.notUseful += 1;
+        this.feedback.set(materialId, current);
+        console.log(`[MaterialAI] Feedback stored: ${materialId} -> ${score}`);
+    }
+
+    private getFeedbackBoost(materialId: number): number {
+        const stats = this.feedback.get(materialId);
+        if (!stats) return 0;
+        return Math.max(-6, Math.min(8, stats.useful * 1.5 + stats.selected * 3 - stats.notUseful * 2));
+    }
+
+    private refreshFeatureCatalog() {
+        this.allApplications = Array.from(new Set(this.currentMaterials.flatMap(material => material.applications))).sort();
+        this.allTypes = Array.from(new Set(this.currentMaterials.map(material => material.type))).sort();
+        this.similarityIndex = new Map(this.currentMaterials.map(material => [material.id, this.buildSimilarityVector(material)]));
+    }
+
+    private buildSimilarityVector(material: Material): number[] {
+        return [
+            normalize(material.strength_mpa, 'strength'),
+            normalize(material.durability_years, 'durability'),
+            normalize(material.cost_per_unit, 'cost'),
+            normalize(material.eco_friendly_score, 'eco'),
+            (material.availability ?? 5) / 10,
+            (material.supplier_rating ?? 3.5) / 5
+        ];
+    }
+
+    private buildTrainingSpecs(material: Material): ProjectSpecs[] {
+        const primaryApplication = material.applications[0] ?? 'Structural';
+        const secondaryApplication = material.applications[1] ?? primaryApplication;
+        const projectCity = material.city_availability?.[0] ?? DEFAULT_CITIES[0];
+
+        return [
+            {
+                application_type: primaryApplication,
+                material_types: [material.type],
+                project_city: projectCity,
+                min_strength_mpa: Math.max(1, material.strength_mpa * 0.7),
+                min_durability_years: Math.max(10, Math.min(100, material.durability_years - 5)),
+                budget_constraint: Math.max(100, material.cost_per_unit * 1.15),
+                price_sensitivity: 'medium',
+                environmental_conditions: {
+                    heat: 5,
+                    cold: 5,
+                    humidity: 5,
+                    uv: 5,
+                    rain: 5,
+                    wind: 5
+                },
+                installation_time_constraint: 'low'
+            },
+            {
+                application_type: secondaryApplication,
+                material_types: [material.type],
+                project_city: projectCity,
+                min_strength_mpa: Math.max(1, material.strength_mpa * 0.55),
+                water_resistance_requirement: Math.max(4, material.water_resistance - 1),
+                eco_friendly_requirement: Math.max(3, material.eco_friendly_score - 1),
+                budget_constraint: Math.max(100, material.cost_per_unit),
+                price_sensitivity: 'high',
+                environmental_conditions: {
+                    heat: 7,
+                    cold: 6,
+                    humidity: 8,
+                    uv: 7,
+                    rain: 8,
+                    wind: 6
+                },
+                installation_time_constraint: 'high'
+            },
+            {
+                application_type: primaryApplication,
+                material_types: [material.type],
+                project_city: projectCity,
+                required_standard_or_grade: material.standard_or_grade,
+                min_durability_years: Math.max(10, Math.min(120, material.durability_years)),
+                fire_resistance_requirement: Math.max(1, Math.min(6, material.fire_resistance_hours)),
+                thermal_requirement: material.thermal_conductivity <= 1 ? 'low' : 'high',
+                price_sensitivity: 'low',
+                environmental_conditions: {
+                    heat: 8,
+                    cold: 7,
+                    humidity: 6,
+                    uv: 8,
+                    rain: 6,
+                    wind: 7
+                },
+                installation_time_constraint: 'low'
+            }
+        ];
+    }
+
+    private rememberPrediction(cacheKey: string, predictions: ScoredMaterial[]) {
+        if (this.predictionCache.size >= MAX_PREDICTION_CACHE_SIZE) {
+            const oldestKey = this.predictionCache.keys().next().value;
+            if (oldestKey) this.predictionCache.delete(oldestKey);
+        }
+
+        this.predictionCache.set(cacheKey, predictions);
     }
 }
-
-export const MaterialAI = new RecommendationEngine();

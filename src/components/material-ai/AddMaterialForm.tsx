@@ -12,10 +12,10 @@ import { Material } from "@/lib/material-ai/types";
 import { Plus } from "lucide-react";
 
 interface AddMaterialFormProps {
-    onAdd: (material: Material) => void;
+    onAdd: (material: Material) => Promise<void>;
 }
 
-const MATERIAL_TYPES = ["Concrete", "Stone", "Wood", "Metal", "Composite", "Ceramic", "Glass", "Other"];
+const MATERIAL_TYPES = ["Concrete", "Steel", "Stone", "Wood", "Ceramic", "Glass", "Bitumen", "Coating", "Other"];
 const APPLICATIONS = [
     "Foundation", "Structural", "Flooring", "Wall",
     "Roofing", "Facade", "Interior Finishing", "Insulation"
@@ -23,6 +23,7 @@ const APPLICATIONS = [
 
 export function AddMaterialForm({ onAdd }: AddMaterialFormProps) {
     const [open, setOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Form State
     const [name, setName] = useState("");
@@ -37,10 +38,10 @@ export function AddMaterialForm({ onAdd }: AddMaterialFormProps) {
     const [waterRes, setWaterRes] = useState(5);
 
     // Weather Resistance
-    const [heat, setHeat] = useState(50);
-    const [cold, setCold] = useState(50);
-    const [humidity, setHumidity] = useState(50);
-    const [uv, setUv] = useState(50);
+    const [heat, setHeat] = useState(5);
+    const [cold, setCold] = useState(5);
+    const [humidity, setHumidity] = useState(5);
+    const [uv, setUv] = useState(5);
 
     const [selectedApps, setSelectedApps] = useState<string[]>([]);
 
@@ -52,10 +53,14 @@ export function AddMaterialForm({ onAdd }: AddMaterialFormProps) {
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Construct material object (assuming some defaults for missing detailed fields)
+        if (selectedApps.length === 0) {
+            alert("Select at least one compatible application.");
+            return;
+        }
+
         const newMaterial: Material = {
             id: 0, // Assigned by engine
             name,
@@ -71,23 +76,42 @@ export function AddMaterialForm({ onAdd }: AddMaterialFormProps) {
             weather_resistance: {
                 heat, cold, humidity, uv
             },
-            // Defaults for fields we aren't asking for yet to keep form simple(r)
             thermal_conductivity: 0.5,
             fire_resistance_hours: 2,
             availability: 8,
             supplier_id: "Custom",
         };
 
-        onAdd(newMaterial);
-        setOpen(false);
-        resetForm();
+        try {
+            setIsSaving(true);
+            await onAdd(newMaterial);
+            setOpen(false);
+            resetForm();
+            alert(`Successfully added ${newMaterial.name} to the material catalog.`);
+        } catch (error) {
+            const message = error instanceof Error
+                ? error.message
+                : "Unable to save the material right now.";
+            alert(message);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const resetForm = () => {
         setName("");
+        setType("Other");
         setCost(0);
         setStrength(0);
         setDurability(0);
+        setEco(5);
+        setMaintenance(5);
+        setComplexity(5);
+        setWaterRes(5);
+        setHeat(5);
+        setCold(5);
+        setHumidity(5);
+        setUv(5);
         setSelectedApps([]);
     };
 
@@ -191,34 +215,32 @@ export function AddMaterialForm({ onAdd }: AddMaterialFormProps) {
 
                     {/* Detailed Weather Resistance */}
                     <div className="border-t pt-4">
-                        <Label className="block mb-4 font-semibold">Weather Resistance Profile (0-100)</Label>
+                        <Label className="block mb-4 font-semibold">Weather Resistance Profile (1-10)</Label>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            {/* Heat */}
                             <div className="space-y-2">
                                 <Label className="text-xs">Heat</Label>
-                                <Input type="number" min={0} max={100} value={heat} onChange={e => setHeat(Number(e.target.value))} className="h-8" />
+                                <Input type="number" min={1} max={10} value={heat} onChange={e => setHeat(Number(e.target.value))} className="h-8" />
                             </div>
-                            {/* Cold */}
                             <div className="space-y-2">
                                 <Label className="text-xs">Cold</Label>
-                                <Input type="number" min={0} max={100} value={cold} onChange={e => setCold(Number(e.target.value))} className="h-8" />
+                                <Input type="number" min={1} max={10} value={cold} onChange={e => setCold(Number(e.target.value))} className="h-8" />
                             </div>
-                            {/* Humidity */}
                             <div className="space-y-2">
                                 <Label className="text-xs">Humidity</Label>
-                                <Input type="number" min={0} max={100} value={humidity} onChange={e => setHumidity(Number(e.target.value))} className="h-8" />
+                                <Input type="number" min={1} max={10} value={humidity} onChange={e => setHumidity(Number(e.target.value))} className="h-8" />
                             </div>
-                            {/* UV */}
                             <div className="space-y-2">
                                 <Label className="text-xs">UV/Sun</Label>
-                                <Input type="number" min={0} max={100} value={uv} onChange={e => setUv(Number(e.target.value))} className="h-8" />
+                                <Input type="number" min={1} max={10} value={uv} onChange={e => setUv(Number(e.target.value))} className="h-8" />
                             </div>
                         </div>
                     </div>
 
                     <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                        <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white">Save Material</Button>
+                        <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isSaving}>Cancel</Button>
+                        <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isSaving}>
+                            {isSaving ? "Saving..." : "Save Material"}
+                        </Button>
                     </DialogFooter>
                 </form>
             </DialogContent>

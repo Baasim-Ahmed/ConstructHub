@@ -4,6 +4,10 @@ import { PrismaClient } from "@prisma/client";
 
 // Singleton Prisma Client instance
 
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is not configured.");
+}
+
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
 export const prisma =

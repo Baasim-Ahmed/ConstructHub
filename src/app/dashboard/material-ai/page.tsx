@@ -1,57 +1,103 @@
 "use client";
 
-import { useState } from 'react';
-import { SpecificationForm } from '@/components/material-ai/SpecificationForm';
-import { MaterialRecommendations } from '@/components/material-ai/MaterialRecommendations';
-import { MaterialAI } from '@/lib/material-ai/recommendation-engine';
-import { ProjectSpecs, ScoredMaterial } from '@/lib/material-ai/types';
+import { useCallback, useEffect, useState } from 'react';
 
+import { AddMaterialForm } from '@/components/material-ai/AddMaterialForm';
 import { ComparisonView } from '@/components/material-ai/ComparisonView';
 import { MaterialDetailDialog } from '@/components/material-ai/MaterialDetailDialog';
-import { AddMaterialForm } from '@/components/material-ai/AddMaterialForm';
-import { Material } from '@/lib/material-ai/types';
+import { MaterialRecommendations } from '@/components/material-ai/MaterialRecommendations';
+import { SpecificationForm } from '@/components/material-ai/SpecificationForm';
+import { Button } from '@/components/ui/button';
+import { createMaterialCatalogEntry, fetchMaterialCatalog } from '@/lib/material-ai/client';
+import { RecommendationEngine } from '@/lib/material-ai/recommendation-engine';
+import { CreateMaterialInput, Material, ProjectSpecs, ScoredMaterial } from '@/lib/material-ai/types';
 
 export default function MaterialAIPage() {
+    const [engine, setEngine] = useState<RecommendationEngine | null>(null);
+    const [catalogError, setCatalogError] = useState<string | null>(null);
+    const [isCatalogLoading, setIsCatalogLoading] = useState(true);
+
     const [recommendations, setRecommendations] = useState<ScoredMaterial[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
+    const [lastSpecs, setLastSpecs] = useState<ProjectSpecs | null>(null);
 
-    // Detail Dialog State
     const [selectedMaterial, setSelectedMaterial] = useState<ScoredMaterial | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
-
-    // Comparison State
     const [comparisonList, setComparisonList] = useState<ScoredMaterial[]>([]);
 
+    const loadCatalog = useCallback(async (rerunSpecs?: ProjectSpecs | null) => {
+        setIsCatalogLoading(true);
+        setCatalogError(null);
+
+        try {
+            const materials = await fetchMaterialCatalog();
+            const nextEngine = new RecommendationEngine(materials);
+            setEngine(nextEngine);
+
+            if (rerunSpecs) {
+                setRecommendations(nextEngine.predict(rerunSpecs));
+                setHasSearched(true);
+            }
+        } catch (error) {
+            const message = error instanceof Error
+                ? error.message
+                : 'Unable to load the material catalog right now.';
+            setCatalogError(message);
+            setEngine(null);
+            setRecommendations([]);
+        } finally {
+            setIsCatalogLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        void loadCatalog();
+    }, [loadCatalog]);
+
     const handleSpecSubmit = async (specs: ProjectSpecs) => {
+        if (!engine) {
+            setCatalogError('The material catalog is still unavailable. Retry loading the data and try again.');
+            return;
+        }
+
         setIsAnalyzing(true);
         setHasSearched(true);
+        setLastSpecs(specs);
         setComparisonList([]);
 
-        setTimeout(() => {
-            const results = MaterialAI.predict(specs);
+        try {
+            await new Promise((resolve) => setTimeout(resolve, 350));
+            const results = engine.predict(specs);
             setRecommendations(results);
+        } finally {
             setIsAnalyzing(false);
-        }, 800);
-    };
-    const handleAddCustomMaterial = (material: Material) => {
-        MaterialAI.addMaterial(material);
-        alert(`Successfully added ${material.name} to the AI brain! It will now be considered in future analyses.`);
+        }
     };
 
+    const handleAddCustomMaterial = async (material: Material) => {
+        const payload: CreateMaterialInput = {
+            ...material,
+            id: material.id > 0 ? material.id : undefined,
+        };
+
+        await createMaterialCatalogEntry(payload);
+        await loadCatalog(lastSpecs);
+    };
 
     const addToComparison = (material: ScoredMaterial) => {
-        if (!comparisonList.find(m => m.id === material.id)) {
+        if (!comparisonList.find((entry) => entry.id === material.id)) {
             if (comparisonList.length >= 3) {
                 alert("You can compare up to 3 materials.");
                 return;
             }
+
             setComparisonList([...comparisonList, material]);
         }
     };
 
     const removeFromComparison = (id: number) => {
-        setComparisonList(comparisonList.filter(m => m.id !== id));
+        setComparisonList(comparisonList.filter((material) => material.id !== id));
     };
 
     const handleViewDetails = (material: ScoredMaterial) => {
@@ -65,15 +111,13 @@ export default function MaterialAIPage() {
                 material={selectedMaterial}
                 open={detailOpen}
                 onOpenChange={setDetailOpen}
-                onCompare={(m) => {
-                    addToComparison(m);
+                onCompare={(material) => {
+                    addToComparison(material);
                     setDetailOpen(false);
                 }}
             />
 
-            {/* Hero Header */}
             <div className="relative overflow-hidden rounded-3xl bg-slate-900 text-white shadow-2xl">
-                {/* ... (keep existing hero content) ... */}
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-500/20 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
                 <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-blue-500/20 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none" />
 
@@ -84,7 +128,7 @@ export default function MaterialAIPage() {
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                             </span>
-                            AI Model Active (Random Forest + KNN)
+                            AI Model Active (Optimized Hybrid Ranking)
                         </div>
                         <h1 className="text-4xl font-bold tracking-tight mb-3">ConstructHUB Material AI</h1>
                         <p className="text-slate-300 text-lg leading-relaxed">
@@ -97,7 +141,15 @@ export default function MaterialAIPage() {
                 </div>
             </div>
 
-            {/* Comparison Section (Sticky if needed, or just top) */}
+            {catalogError && (
+                <div className="flex items-center justify-between gap-4 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+                    <span>{catalogError}</span>
+                    <Button variant="outline" className="border-rose-200 bg-white text-rose-700 hover:bg-rose-100" onClick={() => void loadCatalog(lastSpecs)}>
+                        Retry
+                    </Button>
+                </div>
+            )}
+
             {comparisonList.length > 0 && (
                 <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 mb-8 animate-in slide-in-from-top-4">
                     <ComparisonView materials={comparisonList} onRemove={removeFromComparison} />
@@ -105,14 +157,17 @@ export default function MaterialAIPage() {
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                {/* Left Column: Input Form */}
                 <div className="lg:col-span-1">
-                    <SpecificationForm onSubmit={handleSpecSubmit} isLoading={isAnalyzing} />
+                    <SpecificationForm onSubmit={handleSpecSubmit} isLoading={isAnalyzing || isCatalogLoading} />
                 </div>
 
-                {/* Right Column: Results */}
                 <div className="lg:col-span-3 space-y-6">
-                    {hasSearched ? (
+                    {isCatalogLoading ? (
+                        <div className="flex flex-col items-center justify-center h-[500px] rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-slate-500">
+                            <div className="h-10 w-10 rounded-full border-2 border-slate-200 border-t-slate-700 animate-spin mb-4" />
+                            Loading material catalog from Neon database...
+                        </div>
+                    ) : hasSearched ? (
                         <>
                             <div className="flex justify-between items-center">
                                 <h2 className="text-xl font-semibold text-slate-800">
@@ -130,7 +185,6 @@ export default function MaterialAIPage() {
                         </>
                     ) : (
                         <div className="flex flex-col items-center justify-center h-[500px] border border-dashed border-slate-200 rounded-2xl bg-slate-50/50 backdrop-blur-sm relative overflow-hidden group">
-                            {/* ... (keep empty state) ... */}
                             <div className="absolute inset-0 bg-grid-slate-200/[0.4] [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] pointer-events-none" />
 
                             <div className="relative z-10 text-center p-8 max-w-md transition-transform duration-500 group-hover:scale-105">

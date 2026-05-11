@@ -1,11 +1,11 @@
 "use client";
 
 import { ScoredMaterial } from '@/lib/material-ai/types';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { Check, Plus, BarChart2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 interface MaterialRecommendationsProps {
     recommendations: ScoredMaterial[];
@@ -67,7 +67,7 @@ export function MaterialRecommendations({ recommendations, onCompare, onViewDeta
                                 <span>Cost Efficiency</span>
                                 <span>Rs. {mat.cost_per_unit.toLocaleString()}</span>
                             </div>
-                            <Progress value={mat.breakdown.cost * 10} className="h-1.5 bg-secondary [&>div]:bg-amber-500" />
+                            <Progress value={mat.breakdown.cost} className="h-1.5 bg-secondary [&>div]:bg-amber-500" />
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 pt-2">

@@ -54,7 +54,7 @@ const allLinks: NavLink[] = [
   },
   {
     name: "Safety Detection",
-    href: "/safety",
+    href: "/dashboard/safety-detection",
     icon: ShieldCheck,
     isActive: false,
     requiredRoles: ["ADMIN", "MANAGER", "ENGINEER", "CLIENT"],

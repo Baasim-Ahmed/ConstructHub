@@ -17,12 +17,12 @@ export function MaterialDetailDialog({ material, open, onOpenChange, onCompare }
     if (!material) return null;
 
     const radarData = [
-        { subject: 'Strength', A: Math.min(100, (material.strength_mpa / 100) * 100), fullMark: 100 },
-        { subject: 'Durability', A: Math.min(100, (material.durability_years / 100) * 100), fullMark: 100 },
-        { subject: 'Cost (Inv)', A: Math.min(100, (1000 / material.cost_per_unit) * 5000), fullMark: 100 }, // Heuristic
+        { subject: 'Strength', A: Math.min(100, material.strength_mpa), fullMark: 100 },
+        { subject: 'Durability', A: Math.min(100, material.durability_years), fullMark: 100 },
+        { subject: 'Cost (Inv)', A: Math.min(100, (1000 / Math.max(material.cost_per_unit, 1)) * 5000), fullMark: 100 },
         { subject: 'Eco', A: material.eco_friendly_score * 10, fullMark: 100 },
         { subject: 'Water Res', A: material.water_resistance * 10, fullMark: 100 },
-        { subject: 'Fire Res', A: material.fire_resistance_hours * 20, fullMark: 100 },
+        { subject: 'Fire Res', A: Math.min(100, material.fire_resistance_hours * 20), fullMark: 100 },
     ];
 
     return (
@@ -34,14 +34,13 @@ export function MaterialDetailDialog({ material, open, onOpenChange, onCompare }
                             <Badge className="mb-2 bg-slate-900 text-white hover:bg-slate-800">{material.type}</Badge>
                             <DialogTitle className="text-2xl font-bold text-slate-900">{material.name}</DialogTitle>
                             <DialogDescription className="text-slate-500">
-                                Supplied by {material.supplier_id} • Match Score: <span className="font-bold text-emerald-600">{material.match_score}%</span>
+                                Supplied by {material.supplier_name ?? material.supplier_id} | Match Score: <span className="font-bold text-emerald-600">{material.match_score}%</span>
                             </DialogDescription>
                         </div>
                     </div>
                 </DialogHeader>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4">
-                    {/* Left: Stats */}
                     <div className="space-y-6">
                         <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                             <h4 className="font-semibold text-sm text-slate-800 mb-3">Key Performance Indicators</h4>
@@ -88,7 +87,6 @@ export function MaterialDetailDialog({ material, open, onOpenChange, onCompare }
                         </div>
                     </div>
 
-                    {/* Right: Radar Chart */}
                     <div className="h-[300px] w-full bg-slate-50 rounded-xl relative">
                         <div className="absolute top-2 left-0 w-full text-center text-xs font-semibold text-slate-400">Capability Map</div>
                         <ResponsiveContainer width="100%" height="100%">

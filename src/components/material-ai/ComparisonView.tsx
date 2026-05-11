@@ -4,9 +4,16 @@ import { ScoredMaterial } from '@/lib/material-ai/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend,
+    ResponsiveContainer
 } from 'recharts';
-import { X, Truck, DollarSign } from 'lucide-react';
+import { X, Truck } from 'lucide-react';
 
 interface ComparisonViewProps {
     materials: ScoredMaterial[];
@@ -16,13 +23,12 @@ interface ComparisonViewProps {
 export function ComparisonView({ materials, onRemove }: ComparisonViewProps) {
     if (materials.length === 0) return null;
 
-    // Prepare data for charts
-    const costData = materials.map(m => ({
-        name: m.name,
-        cost: m.cost_per_unit,
-        strength: m.strength_mpa,
-        durability: m.durability_years,
-        score: m.match_score
+    const costData = materials.map((material) => ({
+        name: material.name,
+        cost: material.cost_per_unit,
+        strength: material.strength_mpa,
+        durability: material.durability_years,
+        score: material.match_score
     }));
 
     return (
@@ -32,41 +38,39 @@ export function ComparisonView({ materials, onRemove }: ComparisonViewProps) {
                 <span className="text-sm text-muted-foreground">Comparing {materials.length} items</span>
             </div>
 
-            {/* Side by Side Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {materials.map(m => (
-                    <Card key={m.id} className="relative border-slate-200 shadow-sm">
+                {materials.map((material) => (
+                    <Card key={material.id} className="relative border-slate-200 shadow-sm">
                         <Button
                             variant="ghost"
                             size="icon"
                             className="absolute top-2 right-2 h-6 w-6 text-slate-400 hover:text-rose-500"
-                            onClick={() => onRemove(m.id)}
+                            onClick={() => onRemove(material.id)}
                         >
                             <X className="h-4 w-4" />
                         </Button>
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-bold truncate pr-6">{m.name}</CardTitle>
-                            <CardDescription>{m.type} • {m.supplier_id}</CardDescription>
+                            <CardTitle className="text-sm font-bold truncate pr-6">{material.name}</CardTitle>
+                            <CardDescription>{material.type} | {material.supplier_name ?? material.supplier_id}</CardDescription>
                         </CardHeader>
                         <CardContent className="text-xs space-y-2">
                             <div className="flex justify-between border-b pb-1">
                                 <span>Cost</span>
-                                <span className="font-semibold">Rs. {m.cost_per_unit.toLocaleString()}</span>
+                                <span className="font-semibold">Rs. {material.cost_per_unit.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between border-b pb-1">
                                 <span>Strength</span>
-                                <span className="font-semibold">{m.strength_mpa} MPa</span>
+                                <span className="font-semibold">{material.strength_mpa} MPa</span>
                             </div>
                             <div className="flex justify-between border-b pb-1">
                                 <span>Durability</span>
-                                <span className="font-semibold">{m.durability_years} yrs</span>
+                                <span className="font-semibold">{material.durability_years} yrs</span>
                             </div>
                             <div className="flex justify-between border-b pb-1">
                                 <span>Supplier Rating</span>
-                                <div className="flex items-center text-amber-500">
-                                    {'★'.repeat(4)}{'☆'.repeat(1)}
-                                    <span className="text-slate-400 ml-1 text-[10px]">(Est.)</span>
-                                </div>
+                                <span className="font-semibold text-amber-600">
+                                    {(material.supplier_rating ?? 4).toFixed(1)}/5
+                                </span>
                             </div>
                             <div className="flex justify-between pt-1">
                                 <span className="flex items-center gap-1"><Truck className="h-3 w-3" /> Delivery</span>
@@ -77,7 +81,6 @@ export function ComparisonView({ materials, onRemove }: ComparisonViewProps) {
                 ))}
             </div>
 
-            {/* Visualizations */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
                     <CardHeader>
