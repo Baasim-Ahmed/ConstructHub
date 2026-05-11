@@ -5,7 +5,6 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
 
 interface MaterialRecommendationsProps {
     recommendations: ScoredMaterial[];
@@ -87,7 +86,7 @@ export function MaterialRecommendations({ recommendations, onCompare, onViewDeta
                             className="flex-1 text-xs h-9"
                             onClick={() => onCompare?.(mat)}
                         >
-                            <Plus className="h-3 w-3 mr-1" /> Compare
+                            Compare
                         </Button>
                         <Button
                             className="flex-1 bg-slate-900 text-white text-xs h-9 hover:bg-slate-800"

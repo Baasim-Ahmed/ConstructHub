@@ -16,21 +16,35 @@ export async function GET(req: Request, context: any) {
 
 export async function PUT(req: Request, context: any) {
   const params = await context.params;
-  // Only managers can update clients
+  // Admins and managers can update clients
   const session = await getServerSessionOrNull(req as any);
-  const check = requireRole(session, ["MANAGER"]);
+  const check = requireRole(session, ["MANAGER", "ADMIN"]);
   if (!check.ok) return NextResponse.json({ error: check.message }, { status: check.code });
 
-  const data = await req.json();
-  const updated = await prisma.client.update({ where: { id: params.id }, data });
-  return NextResponse.json(updated);
+  try {
+    const data = await req.json();
+    const updated = await prisma.client.update({
+      where: { id: params.id },
+      data: {
+        name: data.name,
+        email: data.email || null,
+        phone: data.phone || null,
+        address: data.address || null,
+        companyName: data.companyName || null,
+      },
+    });
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error("Update client error", error);
+    return NextResponse.json({ error: "Failed to update client" }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: Request, context: any) {
   const params = await context.params;
-  // Only managers can delete clients
+  // Admins and managers can delete clients
   const session = await getServerSessionOrNull(req as any);
-  const check = requireRole(session, ["MANAGER"]);
+  const check = requireRole(session, ["MANAGER", "ADMIN"]);
   if (!check.ok) return NextResponse.json({ error: check.message }, { status: check.code });
   try {
     const clientId = params.id as string;
@@ -44,6 +58,8 @@ export async function DELETE(req: Request, context: any) {
       await prisma.task.deleteMany({ where: { projectId: { in: projectIds } } });
       // Delete documents for those projects
       await prisma.document.deleteMany({ where: { projectId: { in: projectIds } } });
+      // Delete notes for those projects
+      await prisma.note.deleteMany({ where: { projectId: { in: projectIds } } });
       // Delete the projects
       await prisma.project.deleteMany({ where: { id: { in: projectIds } } });
     }

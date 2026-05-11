@@ -8,8 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Document, Project, User } from '@prisma/client';
 import { toast } from 'sonner';
-import { useRole } from '@/hooks/useCurrentUser';
-import { submitRequest } from '@/lib/requests';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Upload } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
 
@@ -21,14 +20,16 @@ interface AddDocumentModalProps {
 }
 
 export function AddDocumentModal({ open, onOpenChange, onSuccess, editDocument }: AddDocumentModalProps) {
+  const { user } = useCurrentUser();
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     name: editDocument?.name || '',
     url: (editDocument as any)?.url || '',
     projectId: (editDocument as any)?.projectId || '',
-    uploadedById: (editDocument as any)?.uploadedById || '',
+    uploadedById: (editDocument as any)?.uploadedById || user?.id || '',
     viewers: (editDocument as any)?.allowedViewers?.map((v: User) => v.id) || [],
   });
 
@@ -58,19 +59,33 @@ export function AddDocumentModal({ open, onOpenChange, onSuccess, editDocument }
         name: editDocument.name,
         url: (editDocument as any).url || '',
         projectId: (editDocument as any).projectId || '',
-        uploadedById: (editDocument as any).uploadedById || '',
+        uploadedById: (editDocument as any).uploadedById || user?.id || '',
         viewers: (editDocument as any).allowedViewers?.map((v: User) => v.id) || [],
       });
+      setSelectedFile(null);
     }
-  }, [editDocument]);
+  }, [editDocument, user?.id]);
 
-  const role = useRole();
+  useEffect(() => {
+    if (!editDocument && user?.id) {
+      setFormData((current) => ({
+        ...current,
+        uploadedById: current.uploadedById || user.id,
+      }));
+    }
+  }, [editDocument, user?.id]);
+
+  useEffect(() => {
+    if (!open) {
+      setSelectedFile(null);
+    }
+  }, [open]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const fileName = `${Date.now()}-${file.name}`;
-      setFormData({ ...formData, url: fileName, name: file.name });
+      setSelectedFile(file);
+      setFormData({ ...formData, name: file.name });
     }
   };
 
@@ -79,43 +94,44 @@ export function AddDocumentModal({ open, onOpenChange, onSuccess, editDocument }
     setLoading(true);
 
     try {
-      const dataToSubmit = {
-        name: formData.name,
-        url: formData.url,
-        projectId: formData.projectId || null,
-        uploadedById: formData.uploadedById || null,
-        allowedViewers: formData.viewers,
-      } as any;
+      if (!editDocument && !selectedFile) {
+        throw new Error('Please choose a file to upload');
+      }
+
+      const formPayload = new FormData();
+      formPayload.append('name', formData.name);
+      formPayload.append('projectId', formData.projectId || '');
+      formPayload.append('uploadedById', formData.uploadedById || user?.id || '');
+      formData.viewers.forEach((viewerId: string) => formPayload.append('allowedViewers', viewerId));
+      if (selectedFile) {
+        formPayload.append('file', selectedFile);
+      }
 
       if (editDocument) {
-        if (role === 'ENGINEER') {
-          await submitRequest('EDIT_DOCUMENT', { id: editDocument.id, ...dataToSubmit });
-          toast.success('Edit document request submitted');
-        } else {
-          const res = await fetch(`/api/documents/${editDocument.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(dataToSubmit),
-          });
-          if (!res.ok) throw new Error('Failed to update document');
-          toast.success('Document updated successfully');
+        const res = await fetch(`/api/documents/${editDocument.id}`, {
+          method: 'PATCH',
+          body: formPayload,
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to update document');
         }
+        toast.success('Document updated successfully');
       } else {
-        if (role === 'ENGINEER') {
-          await submitRequest('ADD_DOCUMENT', dataToSubmit);
-        } else {
-          const res = await fetch('/api/documents', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(dataToSubmit),
-          });
-          if (!res.ok) throw new Error('Failed to upload document');
-          toast.success('Document uploaded successfully');
+        const res = await fetch('/api/documents', {
+          method: 'POST',
+          body: formPayload,
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to upload document');
         }
+        toast.success('Document uploaded successfully');
       }
 
       onSuccess();
       onOpenChange(false);
+      setSelectedFile(null);
       setFormData({ name: '', url: '', projectId: '', uploadedById: '', viewers: [] });
     } catch (error: any) {
       toast.error(error.message || 'Something went wrong');
@@ -152,7 +168,7 @@ export function AddDocumentModal({ open, onOpenChange, onSuccess, editDocument }
                 Choose File
               </Button>
               <span className="text-sm text-gray-600">
-                {formData.name || 'No file selected'}
+                {selectedFile?.name || formData.name || 'No file selected'}
               </span>
             </div>
           </div>

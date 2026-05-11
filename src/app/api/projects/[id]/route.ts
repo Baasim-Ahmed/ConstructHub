@@ -2,6 +2,40 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSessionOrNull, requireRole } from "@/lib/auth";
 
+async function resolveProjectClientLinks(clientId?: string | null, clientUserId?: string | null) {
+  let finalClientId = clientId || null;
+  let finalClientUserId = clientUserId || null;
+
+  if (finalClientId) {
+    const client = await prisma.client.findUnique({ where: { id: finalClientId } });
+    if (!client) {
+      finalClientId = null;
+    } else if (client.email) {
+      const clientUser = await prisma.user.findFirst({
+        where: { email: client.email, role: "CLIENT" },
+        select: { id: true },
+      });
+      finalClientUserId = clientUser?.id ?? null;
+    }
+  }
+
+  if (!finalClientId && finalClientUserId) {
+    const clientUser = await prisma.user.findUnique({
+      where: { id: finalClientUserId },
+      select: { email: true },
+    });
+    if (clientUser?.email) {
+      const client = await prisma.client.findFirst({
+        where: { email: clientUser.email },
+        select: { id: true },
+      });
+      finalClientId = client?.id ?? null;
+    }
+  }
+
+  return { finalClientId, finalClientUserId };
+}
+
 export async function GET(req: Request, context: any) {
   const params = await context.params;
   // Require authenticated user
@@ -11,7 +45,7 @@ export async function GET(req: Request, context: any) {
 
   const project = await prisma.project.findUnique({
     where: { id: params.id },
-    include: { client: true, tasks: true, manager: true, documents: true },
+    include: { client: true, clientUser: true, tasks: true, manager: true, documents: true },
   });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
   return NextResponse.json(project);
@@ -32,11 +66,9 @@ export async function PUT(req: Request, context: any) {
   if (body.name) data.name = body.name;
   if (body.description !== undefined) data.description = body.description;
   if (body.status) data.status = body.status;
-  if (body.startDate) data.startDate = body.startDate;
-  if (body.endDate) data.endDate = body.endDate;
-  if (body.clientId) data.clientId = body.clientId;
-  if (body.clientUserId) data.clientUserId = body.clientUserId;
-  if (body.managerId) data.managerId = body.managerId;
+  if (body.startDate !== undefined) data.startDate = body.startDate ? new Date(body.startDate) : null;
+  if (body.endDate !== undefined) data.endDate = body.endDate ? new Date(body.endDate) : null;
+  if (body.managerId !== undefined) data.managerId = body.managerId || null;
 
   // Handle budget and spent safely
   // If provided as string/number, parse it. If empty string, set to 0.
@@ -47,24 +79,30 @@ export async function PUT(req: Request, context: any) {
     data.spent = body.spent === "" ? 0 : parseFloat(body.spent);
   }
 
+  if (body.clientId !== undefined || body.clientUserId !== undefined) {
+    const resolvedClient = await resolveProjectClientLinks(body.clientId || null, body.clientUserId || null);
+    data.clientId = resolvedClient.finalClientId;
+    data.clientUserId = resolvedClient.finalClientUserId;
+  }
+
   const updated = await prisma.project.update({ where: { id: params.id }, data });
   return NextResponse.json(updated);
 }
 
 export async function DELETE(req: Request, context: any) {
   const params = await context.params;
-  // Only managers can delete projects
+  // Admins and managers can delete projects
   const session = await getServerSessionOrNull(req as any);
-  const check = requireRole(session, ["MANAGER"]);
+  const check = requireRole(session, ["MANAGER", "ADMIN"]);
   if (!check.ok) return NextResponse.json({ error: check.message }, { status: check.code });
   try {
     const projectId = params.id as string;
-    // Delete tasks under the project
-    await prisma.task.deleteMany({ where: { projectId } });
-    // Delete documents under the project
-    await prisma.document.deleteMany({ where: { projectId } });
-    // Delete the project
-    await prisma.project.delete({ where: { id: projectId } });
+    await prisma.$transaction([
+      prisma.task.deleteMany({ where: { projectId } }),
+      prisma.document.deleteMany({ where: { projectId } }),
+      prisma.note.deleteMany({ where: { projectId } }),
+      prisma.project.delete({ where: { id: projectId } }),
+    ]);
     return NextResponse.json({ message: 'Project and related data deleted' });
   } catch (error) {
     console.error('Delete project error', error);

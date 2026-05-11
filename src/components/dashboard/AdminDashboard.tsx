@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -16,6 +16,8 @@ import { StatCard } from './shared/StatCard';
 import { ActivityItem } from './shared/ActivityItem';
 import { ConstructionEmptyState } from '@/components/ui/ConstructionEmptyState';
 import { ClipboardList } from 'lucide-react';
+import { AddProjectModal } from '@/components/modals/AddProjectModal';
+import { AddTaskModal } from '@/components/modals/AddTaskModal';
 
 
 interface TaskStats {
@@ -37,44 +39,45 @@ export function AdminDashboard({ greeting, userName }: { greeting: string, userN
     const [stats, setStats] = useState({
         totalProjects: 0,
         activeProjects: 0,
+        attentionProjects: 0,
         activeTasks: 0,
         completedTasks: 0,
         usersCount: 0,
         totalBudget: 0
     });
     const [activities, setActivities] = useState([]);
+    const [projectModalOpen, setProjectModalOpen] = useState(false);
+    const [taskModalOpen, setTaskModalOpen] = useState(false);
+
+    const fetchData = useCallback(async () => {
+        try {
+            const [statsRes, activityRes] = await Promise.all([
+                fetch('/api/dashboard/stats', { cache: 'no-store' }),
+                fetch('/api/activity', { cache: 'no-store' })
+            ]);
+
+            if (statsRes.ok) {
+                const data = await statsRes.json();
+                setStats(data);
+            } else {
+                console.error('Stats response not ok:', statsRes.status);
+            }
+
+            if (activityRes.ok) {
+                const data = await activityRes.json();
+                setActivities(data);
+            } else {
+                console.error('Activity response not ok:', activityRes.status);
+            }
+
+        } catch (error) {
+            console.error('Failed to load dashboard data', error);
+        }
+    }, []);
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [statsRes, activityRes] = await Promise.all([
-                    fetch('/api/dashboard/stats', { cache: 'no-store' }),
-                    fetch('/api/activity', { cache: 'no-store' })
-                ]);
-
-                if (statsRes.ok) {
-                    const data = await statsRes.json();
-                    console.log('Dashboard stats received:', data);
-                    setStats(data);
-                } else {
-                    console.error('Stats response not ok:', statsRes.status);
-                }
-
-                if (activityRes.ok) {
-                    const data = await activityRes.json();
-                    console.log('Activity data received:', data);
-                    setActivities(data);
-                } else {
-                    console.error('Activity response not ok:', activityRes.status);
-                }
-
-            } catch (error) {
-                console.error('Failed to load dashboard data', error);
-            }
-        };
-
-        fetchData();
-    }, []);
+        void fetchData();
+    }, [fetchData]);
 
     // --- Derived Data ---
     const totalTasks = stats.activeTasks + stats.completedTasks;
@@ -109,18 +112,14 @@ export function AdminDashboard({ greeting, userName }: { greeting: string, userN
                     </p>
                 </div>
                 <div className="flex gap-3">
-                    <Link href="/dashboard/projects">
-                        <Button className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20 rounded-full px-6">
-                            <FolderDot className="h-4 w-4 mr-2" />
-                            New Project
-                        </Button>
-                    </Link>
-                    <Link href="/dashboard/tasks">
-                        <Button variant="outline" className="rounded-full px-6">
-                            <ClipboardCheck className="h-4 w-4 mr-2" />
-                            Add Task
-                        </Button>
-                    </Link>
+                    <Button className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20 rounded-full px-6" onClick={() => setProjectModalOpen(true)}>
+                        <FolderDot className="h-4 w-4 mr-2" />
+                        New Project
+                    </Button>
+                    <Button variant="outline" className="rounded-full px-6" onClick={() => setTaskModalOpen(true)}>
+                        <ClipboardCheck className="h-4 w-4 mr-2" />
+                        Add Task
+                    </Button>
                 </div>
             </div>
 
@@ -264,7 +263,8 @@ export function AdminDashboard({ greeting, userName }: { greeting: string, userN
                                     </div>
                                     <span className="font-bold text-lg text-slate-800">{activeProjects}</span>
                                 </div>
-                                <div className="flex items-center justify-between">
+                                <Link href="/dashboard/projects?status=ON_HOLD" className="block">
+                                <div className="flex items-center justify-between rounded-xl p-2 -m-2 hover:bg-slate-50 transition-colors">
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
                                             <AlertCircle className="h-5 w-5" />
@@ -274,11 +274,14 @@ export function AdminDashboard({ greeting, userName }: { greeting: string, userN
                                             <p className="text-xs text-slate-500">Delayed milestones</p>
                                         </div>
                                     </div>
-                                    <span className="font-bold text-lg text-slate-800">2</span>
+                                    <span className="font-bold text-lg text-slate-800">{stats.attentionProjects}</span>
                                 </div>
+                                </Link>
+                                <Link href="/dashboard/projects?view=health">
                                 <Button variant="outline" className="w-full text-blue-600 border-blue-200 hover:bg-blue-50">
                                     View Detailed Report
                                 </Button>
+                                </Link>
                             </CardContent>
                         </Card>
                     </div>
@@ -325,6 +328,8 @@ export function AdminDashboard({ greeting, userName }: { greeting: string, userN
                 </div>
 
             </div>
+            <AddProjectModal open={projectModalOpen} onOpenChange={setProjectModalOpen} onSuccess={() => void fetchData()} />
+            <AddTaskModal open={taskModalOpen} onOpenChange={setTaskModalOpen} onSuccess={() => void fetchData()} />
         </div>
     );
 }

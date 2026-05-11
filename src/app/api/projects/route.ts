@@ -2,6 +2,40 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSessionOrNull, requireRole } from "@/lib/auth";
 
+async function resolveProjectClientLinks(clientId?: string | null, clientUserId?: string | null) {
+  let finalClientId = clientId || null;
+  let finalClientUserId = clientUserId || null;
+
+  if (finalClientId) {
+    const client = await prisma.client.findUnique({ where: { id: finalClientId } });
+    if (!client) {
+      finalClientId = null;
+    } else if (client.email) {
+      const clientUser = await prisma.user.findFirst({
+        where: { email: client.email, role: "CLIENT" },
+        select: { id: true },
+      });
+      finalClientUserId = clientUser?.id ?? null;
+    }
+  }
+
+  if (!finalClientId && finalClientUserId) {
+    const clientUser = await prisma.user.findUnique({
+      where: { id: finalClientUserId },
+      select: { email: true },
+    });
+    if (clientUser?.email) {
+      const client = await prisma.client.findFirst({
+        where: { email: clientUser.email },
+        select: { id: true },
+      });
+      finalClientId = client?.id ?? null;
+    }
+  }
+
+  return { finalClientId, finalClientUserId };
+}
+
 // GET all projects
 export async function GET(req: Request) {
   // Require authentication for listing projects
@@ -27,7 +61,12 @@ export async function GET(req: Request) {
         }
       };
     } else if (role === 'CLIENT') {
-      where = { clientUserId: id };
+      where = {
+        OR: [
+          { clientUserId: id },
+          { client: { email: (session as any).user.email } },
+        ],
+      };
     }
 
     console.log(`[Projects API] Role: ${role}, Filter:`, where);
@@ -75,10 +114,7 @@ export async function POST(req: Request) {
 
     if (!name) return NextResponse.json({ error: 'Missing project name' }, { status: 400 });
 
-    // Handle Client User (Preferred)
     let finalClientUserId = clientUserId as string | undefined;
-
-    // Handle Independent Client (Legacy/Fallback)
     let finalClientId = clientId as string | undefined;
 
     // Attempt to resolve Client User if email provided
@@ -93,7 +129,9 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!finalClientId && !finalClientUserId) return NextResponse.json({ error: 'Missing client (User or Client Profile)' }, { status: 400 });
+    const resolvedClient = await resolveProjectClientLinks(finalClientId, finalClientUserId);
+    finalClientId = resolvedClient.finalClientId ?? undefined;
+    finalClientUserId = resolvedClient.finalClientUserId ?? undefined;
 
     // Resolve manager...
     let finalManagerId = managerId as string | undefined;

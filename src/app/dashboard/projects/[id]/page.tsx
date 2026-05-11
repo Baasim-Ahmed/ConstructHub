@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,8 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from 'sonner';
 import { Calendar, Clock, CheckSquare, Users, FileText, ArrowLeft, Cuboid, BrainCircuit } from 'lucide-react';
 import { useRole, roleChecks } from '@/hooks/useCurrentUser';
+import { AddProjectModal } from '@/components/modals/AddProjectModal';
+import { DocumentViewerDialog } from '@/components/documents/DocumentViewerDialog';
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
@@ -19,33 +21,34 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     const role = useRole();
     const [project, setProject] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [selectedDocument, setSelectedDocument] = useState<any>(null);
 
-    useEffect(() => {
-        const fetchProject = async () => {
-            try {
-                const res = await fetch(`/api/projects/${id}`);
-                if (!res.ok) {
-                    if (res.status === 404) {
-                        toast.error("Project not found");
-                        router.push('/dashboard/projects');
-                        return;
-                    }
-                    throw new Error('Failed to fetch project');
+    const fetchProject = useCallback(async () => {
+        if (!id) return;
+        try {
+            const res = await fetch(`/api/projects/${id}`);
+            if (!res.ok) {
+                if (res.status === 404) {
+                    toast.error("Project not found");
+                    router.push('/dashboard/projects');
+                    return;
                 }
-                const data = await res.json();
-                setProject(data);
-            } catch (err) {
-                console.error(err);
-                toast.error("Failed to load project details");
-            } finally {
-                setLoading(false);
+                throw new Error('Failed to fetch project');
             }
-        };
-
-        if (id) {
-            fetchProject();
+            const data = await res.json();
+            setProject(data);
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to load project details");
+        } finally {
+            setLoading(false);
         }
     }, [id, router]);
+
+    useEffect(() => {
+        void fetchProject();
+    }, [fetchProject]);
 
     if (loading) {
         return <div className="p-8 text-center">Loading project details...</div>;
@@ -60,6 +63,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     };
 
     const progress = calculateProgress();
+    const clientLabel = project.client?.name || project.clientUser?.name || 'No Client';
+    const budgetUsage = project.budget > 0 ? ((project.spent / project.budget) * 100).toFixed(0) : '0';
+    const formatTimeline = () => {
+        if (!project.startDate && !project.endDate) return 'Timeline not set';
+        const start = project.startDate ? new Date(project.startDate).toLocaleDateString() : 'TBD';
+        const end = project.endDate ? new Date(project.endDate).toLocaleDateString() : 'TBD';
+        return `${start} - ${end}`;
+    };
 
     return (
         <div className="space-y-6 animate-fade-in-up">
@@ -75,14 +86,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         <Badge variant="outline" className="text-sm px-3 py-1 uppercase">{project.status?.replace('_', ' ')}</Badge>
                     </div>
                     <p className="text-slate-500 flex items-center gap-2">
-                        {project.client?.name ? `Client: ${project.client.name}` : 'No Client'}
+                        {`Client: ${clientLabel}`}
                         <span className="text-slate-300">•</span>
                         <Calendar className="h-4 w-4" />
-                        {new Date(project.startDate).toLocaleDateString()} - {new Date(project.endDate).toLocaleDateString()}
+                        {formatTimeline()}
                     </p>
                 </div>
                 {roleChecks.canEditProjects(role) && (
-                    <Button variant="outline" onClick={() => router.push(`/dashboard/projects?action=edit&id=${id}`)}>
+                    <Button variant="outline" onClick={() => setEditModalOpen(true)}>
                         Edit Project
                     </Button>
                 )}
@@ -100,7 +111,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     <CardContent className="p-6">
                         <div className="text-slate-500 text-sm font-medium mb-1">Budget Used</div>
                         <div className="text-3xl font-bold text-emerald-700 mb-2">
-                            {((project.spent / (project.budget || 1)) * 100).toFixed(0)}%
+                            {budgetUsage}%
                         </div>
                         <p className="text-xs text-emerald-600">
                             {project.spent} / {project.budget}
@@ -161,9 +172,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 </div>
                                 <div>
                                     <h4 className="text-sm font-medium text-slate-900 mb-1">Timeline</h4>
-                                    <p className="text-slate-500">
-                                        {new Date(project.startDate).toLocaleDateString()} - {new Date(project.endDate).toLocaleDateString()}
-                                    </p>
+                                    <p className="text-slate-500">{formatTimeline()}</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -242,7 +251,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {project.documents?.map((doc: any) => (
-                                        <div key={doc.id} className="p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer">
+                                        <div key={doc.id} className="p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedDocument(doc)}>
                                             <div className="flex items-center gap-2 mb-2">
                                                 <FileText className="h-5 w-5 text-blue-500" />
                                                 <span className="font-medium truncate">{doc.name}</span>
@@ -275,6 +284,23 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </TabsContent>
 
             </Tabs>
+            <AddProjectModal
+                open={editModalOpen}
+                onOpenChange={setEditModalOpen}
+                onSuccess={() => {
+                    setLoading(true);
+                    setEditModalOpen(false);
+                    void fetchProject();
+                }}
+                editProject={project}
+            />
+            <DocumentViewerDialog
+                document={selectedDocument}
+                open={Boolean(selectedDocument)}
+                onOpenChange={(open) => {
+                    if (!open) setSelectedDocument(null);
+                }}
+            />
         </div>
     );
 }

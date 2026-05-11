@@ -37,6 +37,7 @@ export async function GET(req: Request) {
         const [
             totalProjects,
             activeProjects,
+            attentionProjects,
             totalTasks,
             completedTasks,
             blockedTasks,
@@ -46,6 +47,7 @@ export async function GET(req: Request) {
         ] = await Promise.all([
             prisma.project.count({ where: projectFilter }),
             prisma.project.count({ where: { ...projectFilter, status: { in: ["PLANNING", "IN_PROGRESS"] } } }),
+            prisma.project.count({ where: { ...projectFilter, status: "ON_HOLD" } }),
             prisma.task.count({ where: taskFilter }),
             prisma.task.count({ where: { ...taskFilter, status: "COMPLETED" } }),
             prisma.task.count({ where: { ...taskFilter, status: "BLOCKED" } }),
@@ -71,6 +73,7 @@ export async function GET(req: Request) {
         const result = {
             totalProjects,
             activeProjects,
+            attentionProjects,
             activeTasks: totalTasks - completedTasks,
             totalTasks,
             completedTasks,

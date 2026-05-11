@@ -58,9 +58,11 @@ export default function LandingPage() {
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <Button variant="outline" size="xl" className="h-14 rounded-md px-10 text-lg border-2 border-primary/20 hover:border-primary hover:bg-primary/5 text-foreground font-bold uppercase transition-all">
-              View Specs
-            </Button>
+            <Link href="#heavy-duty-features">
+              <Button variant="outline" size="xl" className="h-14 rounded-md px-10 text-lg border-2 border-primary/20 hover:border-primary hover:bg-primary/5 text-foreground font-bold uppercase transition-all">
+                View Specs
+              </Button>
+            </Link>
           </div>
 
           {/* Hero Image */}
@@ -79,7 +81,7 @@ export default function LandingPage() {
       </header>
 
       {/* Features Grid */}
-      <section className="py-24 bg-secondary/50 border-y border-border">
+      <section id="heavy-duty-features" className="py-24 bg-secondary/50 border-y border-border">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-20">
             <h2 className="text-4xl font-black text-foreground mb-6 uppercase tracking-tight">Heavy Duty Features</h2>

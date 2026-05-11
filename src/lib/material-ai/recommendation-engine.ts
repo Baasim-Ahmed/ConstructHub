@@ -10,16 +10,16 @@ const NORMALIZATION_CONSTANTS = {
 };
 
 const DEFAULT_ENVIRONMENT = {
-    heat: 5,
-    cold: 5,
-    humidity: 5,
-    uv: 5,
+    sun: 5,
+    wind: 5,
     rain: 5,
-    wind: 5
+    fire: 5,
+    humidity: 5
 };
 
 const DEFAULT_CITIES = ['Karachi', 'Lahore', 'Islamabad', 'Rawalpindi', 'Faisalabad', 'Multan', 'Peshawar', 'Quetta'];
 const MAX_PREDICTION_CACHE_SIZE = 24;
+const ENABLE_CLIENT_MODEL_TRAINING = false;
 
 const SUPPLIER_META: Record<string, Partial<Material>> = {
     SUP019: { supplier_name: 'Lucky Cement Limited', source_url: 'https://www.lucky-cement.com/products3/', standard_or_grade: 'SRC Cement', unit: 'PKR per m3 concrete estimate', data_quality: 'estimated', supplier_rating: 4.4 },
@@ -54,6 +54,8 @@ type FeedbackStats = {
     selected: number;
 };
 
+type ResolvedEnvironment = typeof DEFAULT_ENVIRONMENT;
+
 function normalize(value: number, key: keyof typeof NORMALIZATION_CONSTANTS): number {
     const { min, max } = NORMALIZATION_CONSTANTS[key];
     return Math.max(0, Math.min(1, (value - min) / (max - min)));
@@ -63,10 +65,26 @@ function clampScore(value: number): number {
     return Math.round(Math.max(0, Math.min(100, value)));
 }
 
-function getEnvironment(specs: ProjectSpecs) {
+function clampEnvironmentValue(value: number | undefined, fallback: number): number {
+    if (!Number.isFinite(value)) return fallback;
+    return Math.min(10, Math.max(1, value as number));
+}
+
+function getEnvironment(specs: ProjectSpecs): ResolvedEnvironment {
+    const env = specs.environmental_conditions;
+    const legacyHeat = env?.heat;
+    const legacyUv = env?.uv;
+    const legacySun = [legacyHeat, legacyUv].filter((value): value is number => typeof value === 'number');
+    const sunFallback = legacySun.length > 0
+        ? legacySun.reduce((sum, value) => sum + value, 0) / legacySun.length
+        : DEFAULT_ENVIRONMENT.sun;
+
     return {
-        ...DEFAULT_ENVIRONMENT,
-        ...specs.environmental_conditions
+        sun: clampEnvironmentValue(env?.sun, sunFallback),
+        wind: clampEnvironmentValue(env?.wind, DEFAULT_ENVIRONMENT.wind),
+        rain: clampEnvironmentValue(env?.rain, DEFAULT_ENVIRONMENT.rain),
+        fire: clampEnvironmentValue(env?.fire, legacyHeat ?? DEFAULT_ENVIRONMENT.fire),
+        humidity: clampEnvironmentValue(env?.humidity, DEFAULT_ENVIRONMENT.humidity)
     };
 }
 
@@ -80,6 +98,14 @@ function createSpecsCacheKey(specs: ProjectSpecs): string {
 
 function fitAgainstStress(resistance: number, stress: number): number {
     return Math.max(0, Math.min(1, 1 - Math.max(0, stress - resistance) / 7));
+}
+
+function fireResistanceScore(hours: number): number {
+    return Math.min(10, Math.max(1, hours * 2));
+}
+
+function fireRequirementFromStress(stress: number): number {
+    return Math.max(1, stress / 2);
 }
 
 function average(values: number[]): number {
@@ -158,9 +184,12 @@ function scoreApplicationFit(specs: ProjectSpecs, material: Material): number {
         return 70;
     }
 
-    if (['Facade', 'Windows', 'Doors'].includes(specs.application_type) && (wetExposure >= 8 || env.uv >= 8)) {
+    if (['Facade', 'Windows', 'Doors'].includes(specs.application_type) && (wetExposure >= 8 || env.sun >= 8)) {
         const envelopeFit = average([
-            fitAgainstStress(material.weather_resistance.uv, env.uv),
+            average([
+                fitAgainstStress(material.weather_resistance.heat, env.sun),
+                fitAgainstStress(material.weather_resistance.uv, env.sun)
+            ]),
             fitAgainstStress(material.weather_resistance.humidity, env.humidity),
             fitAgainstStress(material.water_resistance, env.rain)
         ]);
@@ -174,15 +203,22 @@ function scorePerformance(specs: ProjectSpecs, material: Material): number {
     const checks: number[] = [];
     const env = getEnvironment(specs);
     const wetExposure = Math.max(env.humidity, env.rain);
+    const fireRequirement = fireRequirementFromStress(env.fire);
 
     if (specs.min_strength_mpa) checks.push(Math.min(100, (material.strength_mpa / specs.min_strength_mpa) * 100));
     if (specs.fire_resistance_requirement) checks.push(Math.min(100, (material.fire_resistance_hours / specs.fire_resistance_requirement) * 100));
+    if (!specs.fire_resistance_requirement && env.fire >= 7) {
+        checks.push(Math.min(100, (material.fire_resistance_hours / fireRequirement) * 100));
+    }
     if (specs.water_resistance_requirement) checks.push(Math.min(100, (material.water_resistance / specs.water_resistance_requirement) * 100));
     if (!specs.water_resistance_requirement && wetExposure >= 8 && ['Foundation', 'Roofing', 'Facade', 'Windows', 'Doors'].includes(specs.application_type)) {
         checks.push(material.water_resistance * 10);
     }
-    if (env.uv >= 8 && ['Roofing', 'Facade', 'Windows', 'Doors'].includes(specs.application_type)) {
-        checks.push(material.weather_resistance.uv * 10);
+    if (env.sun >= 8 && ['Roofing', 'Facade', 'Windows', 'Doors'].includes(specs.application_type)) {
+        checks.push(average([
+            material.weather_resistance.heat * 10,
+            material.weather_resistance.uv * 10
+        ]));
     }
     if (specs.thermal_requirement === 'low') checks.push(material.thermal_conductivity <= 1 ? 100 : Math.max(30, 100 - material.thermal_conductivity * 20));
     if (specs.thermal_requirement === 'high') checks.push(material.thermal_conductivity >= 1 ? 90 : 55);
@@ -193,29 +229,32 @@ function scorePerformance(specs: ProjectSpecs, material: Material): number {
 
 function scoreEnvironment(specs: ProjectSpecs, material: Material): number {
     const env = getEnvironment(specs);
-    const heatFit = fitAgainstStress(material.weather_resistance.heat, env.heat);
-    const coldFit = fitAgainstStress(material.weather_resistance.cold, env.cold);
+    const sunFit = average([
+        fitAgainstStress(material.weather_resistance.heat, env.sun),
+        fitAgainstStress(material.weather_resistance.uv, env.sun)
+    ]);
     const humidityFit = fitAgainstStress(material.weather_resistance.humidity, env.humidity);
-    const uvFit = fitAgainstStress(material.weather_resistance.uv, env.uv);
     const rainFit = fitAgainstStress(material.water_resistance, env.rain);
     const windFit = fitAgainstStress(Math.min(10, material.strength_mpa / 50), env.wind);
+    const fireFit = average([
+        fitAgainstStress(material.weather_resistance.heat, env.fire),
+        fitAgainstStress(fireResistanceScore(material.fire_resistance_hours), env.fire)
+    ]);
     const wetExposure = Math.max(env.humidity, env.rain);
 
     const baseScore = weightedAverage([
-        { value: heatFit, weight: env.heat >= 8 ? 1.2 : 0.9 },
-        { value: coldFit, weight: env.cold >= 8 ? 1.1 : 0.7 },
+        { value: sunFit, weight: env.sun >= 8 ? 1.6 : 1.0 },
         { value: humidityFit, weight: wetExposure >= 8 ? 1.7 : 1.0 },
-        { value: uvFit, weight: env.uv >= 8 ? 1.5 : 0.9 },
         { value: rainFit, weight: wetExposure >= 8 ? 2.1 : 1.1 },
-        { value: windFit, weight: env.wind >= 8 ? 1.3 : 0.6 }
+        { value: fireFit, weight: env.fire >= 8 ? 1.8 : 1.0 },
+        { value: windFit, weight: env.wind >= 8 ? 1.3 : 0.8 }
     ]) * 100;
 
     const highStressPenalty = [
-        { fit: heatFit, stress: env.heat },
-        { fit: coldFit, stress: env.cold },
+        { fit: sunFit, stress: env.sun },
         { fit: humidityFit, stress: env.humidity },
-        { fit: uvFit, stress: env.uv },
         { fit: rainFit, stress: env.rain },
+        { fit: fireFit, stress: env.fire },
         { fit: windFit, stress: env.wind }
     ].reduce((penalty, item) => {
         if (item.stress < 8 || item.fit >= 0.7) return penalty;
@@ -265,7 +304,7 @@ function scoreContextualAdjustment(specs: ProjectSpecs, material: Material, envi
         if (environmentScore < 75) return -4;
     }
 
-    if (Math.max(env.heat, env.cold, env.humidity, env.uv, env.rain, env.wind) >= 8 && environmentScore < 65) {
+    if (Math.max(env.sun, env.humidity, env.rain, env.fire, env.wind) >= 8 && environmentScore < 65) {
         return -6;
     }
 
@@ -317,6 +356,7 @@ function buildReasons(specs: ProjectSpecs, material: Material, breakdown: Scored
     if (breakdown.budget && breakdown.budget < 50) warnings.push('over budget for the selected limit');
     if (fitAgainstStress(material.weather_resistance.humidity, env.humidity) < 0.7) warnings.push('low humidity resistance for this site condition');
     if (fitAgainstStress(material.water_resistance, env.rain) < 0.7) warnings.push('low rain/water resistance for this site condition');
+    if (env.fire >= 7 && fitAgainstStress(fireResistanceScore(material.fire_resistance_hours), env.fire) < 0.7) warnings.push('low fire resistance for this site condition');
     if (material.fire_resistance_hours < (specs.fire_resistance_requirement ?? 0)) warnings.push('below requested fire resistance');
     if (!material.source_url) warnings.push('supplier source data is incomplete');
     if (breakdown.standards && breakdown.standards < 50 && specs.required_standard_or_grade) warnings.push('does not clearly match the requested standard or grade');
@@ -326,7 +366,7 @@ function buildReasons(specs: ProjectSpecs, material: Material, breakdown: Scored
 
 function getWeights(specs: ProjectSpecs) {
     const env = getEnvironment(specs);
-    const highEnvironmentStress = Math.max(env.heat, env.cold, env.humidity, env.uv, env.rain, env.wind) >= 8;
+    const highEnvironmentStress = Math.max(env.sun, env.humidity, env.rain, env.fire, env.wind) >= 8;
     const costWeight = specs.price_sensitivity === 'high' ? 0.23 : specs.price_sensitivity === 'low' ? 0.1 : 0.16;
     const performanceWeight = specs.price_sensitivity === 'high' ? 0.17 : 0.22;
 
@@ -430,11 +470,10 @@ function extractFeatures(
         specs.application_type === 'Structural' ? 1 : 0,
         specs.budget_constraint ? 1 : 0,
         material.applications.includes(specs.application_type) ? 1 : 0,
-        env.heat / 10,
-        env.cold / 10,
+        env.sun / 10,
         env.humidity / 10,
-        env.uv / 10,
         env.rain / 10,
+        env.fire / 10,
         env.wind / 10,
         (resolvedAnalysis.breakdown.budget ?? 0) / 100,
         (resolvedAnalysis.breakdown.performance ?? 0) / 100,
@@ -458,7 +497,6 @@ export class RecommendationEngine {
     constructor(materials: Material[]) {
         this.currentMaterials = materials.map(enrichMaterial);
         this.refreshFeatureCatalog();
-        this.trainModels();
     }
 
     public addMaterial(material: Material) {
@@ -472,7 +510,6 @@ export class RecommendationEngine {
         this.refreshFeatureCatalog();
         this.predictionCache.clear();
         this.isTrained = false;
-        this.trainModels();
     }
 
     public trainModels() {
@@ -510,7 +547,7 @@ export class RecommendationEngine {
 
     public predict(specs: ProjectSpecs): ScoredMaterial[] {
         if (this.currentMaterials.length === 0) return [];
-        if (!this.isTrained) this.trainModels();
+        if (ENABLE_CLIENT_MODEL_TRAINING && !this.isTrained) this.trainModels();
 
         const cacheKey = createSpecsCacheKey(specs);
         const cached = this.predictionCache.get(cacheKey);
@@ -518,11 +555,15 @@ export class RecommendationEngine {
 
         const predictions = this.currentMaterials.map(material => {
             const expert = analyzeMaterial(specs, material);
-            const modelScore = this.isTrained
+            const modelScore = ENABLE_CLIENT_MODEL_TRAINING && this.isTrained
                 ? Math.round(this.rfModel.predict([extractFeatures(specs, material, this.allApplications, this.allTypes, expert)])[0])
                 : expert.score;
             const feedbackBoost = this.getFeedbackBoost(material.id);
-            const score = clampScore(expert.score * 0.78 + modelScore * 0.22 + feedbackBoost);
+            const score = clampScore(
+                ENABLE_CLIENT_MODEL_TRAINING && this.isTrained
+                    ? expert.score * 0.78 + modelScore * 0.22 + feedbackBoost
+                    : expert.score + feedbackBoost
+            );
 
             return {
                 ...material,
@@ -612,11 +653,10 @@ export class RecommendationEngine {
                 budget_constraint: Math.max(100, material.cost_per_unit * 1.15),
                 price_sensitivity: 'medium',
                 environmental_conditions: {
-                    heat: 5,
-                    cold: 5,
+                    sun: 5,
                     humidity: 5,
-                    uv: 5,
                     rain: 5,
+                    fire: 5,
                     wind: 5
                 },
                 installation_time_constraint: 'low'
@@ -631,11 +671,10 @@ export class RecommendationEngine {
                 budget_constraint: Math.max(100, material.cost_per_unit),
                 price_sensitivity: 'high',
                 environmental_conditions: {
-                    heat: 7,
-                    cold: 6,
+                    sun: 7,
                     humidity: 8,
-                    uv: 7,
                     rain: 8,
+                    fire: 6,
                     wind: 6
                 },
                 installation_time_constraint: 'high'
@@ -650,11 +689,10 @@ export class RecommendationEngine {
                 thermal_requirement: material.thermal_conductivity <= 1 ? 'low' : 'high',
                 price_sensitivity: 'low',
                 environmental_conditions: {
-                    heat: 8,
-                    cold: 7,
+                    sun: 8,
                     humidity: 6,
-                    uv: 8,
                     rain: 6,
+                    fire: 8,
                     wind: 7
                 },
                 installation_time_constraint: 'low'

@@ -11,23 +11,47 @@ export interface CurrentUser {
   role: UserRole;
 }
 
+let cachedUser: CurrentUser | null | undefined;
+let currentUserRequest: Promise<CurrentUser | null> | null = null;
+
+async function fetchCurrentUser() {
+  if (!currentUserRequest) {
+    currentUserRequest = fetch('/api/auth/me', { cache: 'no-store' })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return await res.json() as CurrentUser | null;
+      })
+      .then((user) => {
+        cachedUser = user;
+        return user;
+      })
+      .finally(() => {
+        currentUserRequest = null;
+      });
+  }
+
+  return currentUserRequest;
+}
+
 export function useCurrentUser() {
-  const [user, setUser] = useState<CurrentUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<CurrentUser | null>(cachedUser ?? null);
+  const [loading, setLoading] = useState(cachedUser === undefined);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (cachedUser !== undefined) {
+      setUser(cachedUser);
+      setLoading(false);
+      return;
+    }
+
     const fetchUser = async () => {
       try {
-        const res = await fetch('/api/auth/me');
-        if (res.ok) {
-          const data = await res.json();
-          setUser(data);
-        } else {
-          setUser(null);
-        }
+        const data = await fetchCurrentUser();
+        setUser(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch user');
+        cachedUser = null;
         setUser(null);
       } finally {
         setLoading(false);

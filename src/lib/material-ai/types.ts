@@ -26,9 +26,15 @@ export interface WeatherResistance {
     uv: number;
 }
 
-export interface EnvironmentalConditions extends WeatherResistance {
-    rain: number;
+export interface EnvironmentalConditions {
+    sun: number;
     wind: number;
+    rain: number;
+    fire: number;
+    humidity: number;
+    cold?: number;
+    heat?: number;
+    uv?: number;
 }
 
 export interface Supplier {

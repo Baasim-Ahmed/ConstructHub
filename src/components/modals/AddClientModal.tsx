@@ -47,9 +47,12 @@ export function AddClientModal({ open, onOpenChange, onSuccess, editClient }: Ad
         const res = await fetch(`/api/clients/${editClient.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...formData, updatedAt: new Date().toISOString() }),
+          body: JSON.stringify(formData),
         });
-        if (!res.ok) throw new Error('Failed to update client');
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to update client');
+        }
         toast.success('Client updated successfully');
       } else {
         const res = await fetch('/api/clients', {
@@ -57,7 +60,10 @@ export function AddClientModal({ open, onOpenChange, onSuccess, editClient }: Ad
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData),
         });
-        if (!res.ok) throw new Error('Failed to add client');
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to add client');
+        }
         toast.success('Client added successfully');
       }
 

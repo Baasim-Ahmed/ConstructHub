@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Plus, RefreshCcw } from "lucide-react";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { ReactNode } from "react";
 
@@ -10,6 +10,7 @@ interface PageHeaderProps {
   actionHref?: string;
   onActionClick?: () => void;
   actionIcon?: React.ElementType;
+  actionLoading?: boolean;
   children?: ReactNode;
 }
 
@@ -20,6 +21,7 @@ export function PageHeader({
   actionHref,
   onActionClick,
   actionIcon: Icon = Plus,
+  actionLoading = false,
   children,
 }: PageHeaderProps) {
   return (
@@ -35,7 +37,7 @@ export function PageHeader({
         {actionLabel && actionHref && (
           <Link href={actionHref}>
             <Button className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20 rounded-full px-6">
-              <Icon className={`h-4 w-4 mr-2 ${actionLabel === 'Refresh' ? 'animate-spin' : ''}`} />
+              <Icon className={`h-4 w-4 mr-2 ${actionLoading ? 'animate-spin' : ''}`} />
               {actionLabel}
             </Button>
           </Link>
@@ -44,8 +46,9 @@ export function PageHeader({
           <Button
             onClick={onActionClick}
             className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20 rounded-full px-6"
+            disabled={actionLoading}
           >
-            <Icon className={`h-4 w-4 mr-2 ${actionLabel === 'Refresh' ? 'animate-spin' : ''}`} />
+            <Icon className={`h-4 w-4 mr-2 ${actionLoading ? 'animate-spin' : ''}`} />
             {actionLabel}
           </Button>
         )}

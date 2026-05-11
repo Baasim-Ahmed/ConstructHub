@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, Pencil, Trash2, Mail, Phone, Building, MoreHorizontal } from "lucide-react";
@@ -31,6 +32,7 @@ import {
 
 function ClientsPageContent() {
   const role = useRole();
+  const searchParams = useSearchParams();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -84,6 +86,13 @@ function ClientsPageContent() {
     setEditClient(null);
   };
 
+  const textFilter = searchParams.get('q')?.trim().toLowerCase();
+  const filteredClients = clients.filter((client: any) => {
+    if (!textFilter) return true;
+    const haystack = `${client.name} ${client.companyName || ''} ${client.email || ''} ${client.phone || ''}`.toLowerCase();
+    return haystack.includes(textFilter);
+  });
+
   return (
     <div className="space-y-6 animate-fade-in-up">
       <PageHeader
@@ -97,7 +106,7 @@ function ClientsPageContent() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-48 w-full rounded-xl" />)}
         </div>
-      ) : clients.length === 0 ? (
+      ) : filteredClients.length === 0 ? (
         <div className="text-center py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
           <div className="mx-auto h-12 w-12 text-slate-400 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
             <Building className="h-6 w-6" />
@@ -112,7 +121,7 @@ function ClientsPageContent() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {clients.map((client) => (
+          {filteredClients.map((client) => (
             <Card key={client.id} className="group hover:shadow-xl transition-all duration-300 border-slate-200">
               <CardContent className="p-6">
                 <div className="flex justify-between items-start mb-4">

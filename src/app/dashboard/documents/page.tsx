@@ -5,7 +5,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Download, Trash2, Pencil, FileText, Calendar, User } from 'lucide-react';
 import type { Document } from '@prisma/client';
-import { generateDocumentPDF } from '@/lib/pdf-generator';
 import { AddDocumentModal } from '@/components/modals/AddDocumentModal';
 import { useRole, roleChecks } from '@/hooks/useCurrentUser';
 import { useRefetchOnRoleChange } from '@/hooks/useRefetchOnRoleChange';
@@ -30,6 +29,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from 'lucide-react';
+import { DocumentViewerDialog } from '@/components/documents/DocumentViewerDialog';
+import { downloadDocument } from '@/lib/document-actions';
 
 export default function DocumentsPage() {
   const role = useRole();
@@ -39,6 +40,7 @@ export default function DocumentsPage() {
   const [editDocument, setEditDocument] = useState<Document | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
 
   const fetchDocuments = useCallback(async () => {
     setLoading(true);
@@ -123,7 +125,7 @@ export default function DocumentsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {documents.map((doc) => (
-            <Card key={doc.id} className="group hover:shadow-lg transition-all duration-300 border-slate-200 cursor-pointer">
+            <Card key={doc.id} className="group hover:shadow-lg transition-all duration-300 border-slate-200 cursor-pointer" onClick={() => setSelectedDocument(doc)}>
               <CardContent className="p-5 flex flex-col h-full">
                 <div className="flex justify-between items-start mb-4">
                   <div className="h-10 w-10 bg-red-100 rounded-lg flex items-center justify-center text-red-600">
@@ -132,7 +134,7 @@ export default function DocumentsPage() {
                   {roleChecks.canEditDocuments(role) && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-600 -mr-2">
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-slate-600 -mr-2" onClick={(event) => event.stopPropagation()}>
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -169,7 +171,16 @@ export default function DocumentsPage() {
                     </div>
 
                     {doc.url ? (
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-600 bg-blue-50 hover:bg-blue-100 hover:text-blue-700 rounded-full" onClick={() => generateDocumentPDF(doc)} title="Download PDF">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-blue-600 bg-blue-50 hover:bg-blue-100 hover:text-blue-700 rounded-full"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void downloadDocument(doc).catch((error: Error) => toast.error(error.message));
+                        }}
+                        title="Download document"
+                      >
                         <Download className="h-4 w-4" />
                       </Button>
                     ) : (
@@ -190,6 +201,13 @@ export default function DocumentsPage() {
         onOpenChange={handleModalClose}
         onSuccess={fetchDocuments}
         editDocument={editDocument}
+      />
+      <DocumentViewerDialog
+        document={selectedDocument}
+        open={Boolean(selectedDocument)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedDocument(null);
+        }}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

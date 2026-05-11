@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -12,6 +12,8 @@ import {
 import Link from 'next/link';
 import { StatCard } from './shared/StatCard';
 import { ActivityItem } from './shared/ActivityItem';
+import { AddProjectModal } from '@/components/modals/AddProjectModal';
+import { AddTaskModal } from '@/components/modals/AddTaskModal';
 
 export function ManagerDashboard({ greeting, userName }: { greeting: string, userName: string }) {
     const [stats, setStats] = useState({
@@ -25,20 +27,29 @@ export function ManagerDashboard({ greeting, userName }: { greeting: string, use
         totalProjects: 0
     });
     const [activities, setActivities] = useState<any[]>([]);
+    const [projectModalOpen, setProjectModalOpen] = useState(false);
+    const [taskModalOpen, setTaskModalOpen] = useState(false);
+
+    const fetchDashboardData = useCallback(async () => {
+        try {
+            const [statsRes, activityRes] = await Promise.all([
+                fetch('/api/dashboard/stats', { cache: 'no-store' }),
+                fetch('/api/activity', { cache: 'no-store' }),
+            ]);
+            const statsData = statsRes.ok ? await statsRes.json() : null;
+            const activityData = activityRes.ok ? await activityRes.json() : [];
+            if (statsData) {
+                setStats(statsData);
+            }
+            setActivities(Array.isArray(activityData) ? activityData : []);
+        } catch (err) {
+            console.error("Dashboard fetch error:", err);
+        }
+    }, []);
 
     useEffect(() => {
-        // Fetch stats
-        fetch('/api/dashboard/stats', { cache: 'no-store' })
-            .then(res => res.json())
-            .then(data => setStats(data))
-            .catch(err => console.error("Stats fetch error:", err));
-
-        // Fetch activity
-        fetch('/api/activity', { cache: 'no-store' })
-            .then(res => res.json())
-            .then(data => setActivities(Array.isArray(data) ? data : []))
-            .catch(err => console.error("Activity fetch error:", err));
-    }, []);
+        void fetchDashboardData();
+    }, [fetchDashboardData]);
 
     return (
         <div className="space-y-8 animate-fade-in-up">
@@ -51,18 +62,14 @@ export function ManagerDashboard({ greeting, userName }: { greeting: string, use
                     <p className="text-slate-500 mt-1">Here's what your team is working on today.</p>
                 </div>
                 <div className="flex gap-3">
-                    <Link href="/dashboard/projects/new">
-                        <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 rounded-full px-6">
-                            <Plus className="h-4 w-4 mr-2" />
-                            New Project
-                        </Button>
-                    </Link>
-                    <Link href="/dashboard/tasks/new">
-                        <Button variant="outline" className="rounded-full px-6">
-                            <Plus className="h-4 w-4 mr-2" />
-                            Assign Task
-                        </Button>
-                    </Link>
+                    <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 rounded-full px-6" onClick={() => setProjectModalOpen(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        New Project
+                    </Button>
+                    <Button variant="outline" className="rounded-full px-6" onClick={() => setTaskModalOpen(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Task
+                    </Button>
                 </div>
             </div>
 
@@ -188,6 +195,8 @@ export function ManagerDashboard({ greeting, userName }: { greeting: string, use
                     </Card>
                 </div>
             </div>
+            <AddProjectModal open={projectModalOpen} onOpenChange={setProjectModalOpen} onSuccess={() => void fetchDashboardData()} />
+            <AddTaskModal open={taskModalOpen} onOpenChange={setTaskModalOpen} onSuccess={() => void fetchDashboardData()} />
         </div>
     );
 }

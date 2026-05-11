@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getServerSessionOrNull, requireRole } from "@/lib/auth";
+import { persistDocumentFile } from "@/lib/document-storage";
 
 export async function GET(req: Request) {
   // Require authenticated user for listing documents
@@ -67,16 +69,49 @@ export async function POST(req: Request) {
   const check = requireRole(session, ["ADMIN", "MANAGER", "ENGINEER"]);
   if (!check.ok) return NextResponse.json({ error: check.message }, { status: check.code });
 
-  const body = await req.json();
-  const { allowedViewers, ...rest } = body;
+  try {
+    const contentType = req.headers.get("content-type") || "";
+    let payload: Record<string, any>;
 
-  const data = {
-    ...rest,
-    allowedViewers: allowedViewers && allowedViewers.length > 0
-      ? { connect: allowedViewers.map((vid: string) => ({ id: vid })) }
-      : undefined
-  };
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      const file = formData.get("file");
+      if (!(file instanceof File)) {
+        return NextResponse.json({ error: "A document file is required" }, { status: 400 });
+      }
 
-  const doc = await prisma.document.create({ data });
-  return NextResponse.json(doc);
+      const storedFile = await persistDocumentFile(file);
+      const rawViewers = formData.getAll("allowedViewers").map((value) => String(value));
+      payload = {
+        name: formData.get("name")?.toString() || storedFile.name,
+        url: storedFile.relativePath,
+        type: storedFile.mimeType,
+        projectId: formData.get("projectId")?.toString() || null,
+        uploadedById: formData.get("uploadedById")?.toString() || (session as any).user.id,
+        allowedViewers: rawViewers,
+      };
+    } else {
+      payload = await req.json();
+    }
+
+    const { allowedViewers, ...rest } = payload;
+    const data: Prisma.DocumentCreateInput = {
+      name: String(rest.name || ""),
+      url: String(rest.url || ""),
+      type: rest.type ? String(rest.type) : undefined,
+      project: rest.projectId ? { connect: { id: String(rest.projectId) } } : undefined,
+      uploadedBy: (rest.uploadedById || (session as any).user.id)
+        ? { connect: { id: String(rest.uploadedById || (session as any).user.id) } }
+        : undefined,
+      allowedViewers: allowedViewers && allowedViewers.length > 0
+        ? { connect: allowedViewers.map((vid: string) => ({ id: vid })) }
+        : undefined
+    };
+
+    const doc = await prisma.document.create({ data });
+    return NextResponse.json(doc);
+  } catch (error) {
+    console.error("Create document error", error);
+    return NextResponse.json({ error: "Failed to upload document" }, { status: 500 });
+  }
 }

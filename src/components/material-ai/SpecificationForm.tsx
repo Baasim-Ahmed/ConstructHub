@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { ProjectSpecs } from '@/lib/material-ai/types';
-import { Briefcase, DollarSign, Thermometer, Zap, Sun, CloudRain, Wind, Flame } from 'lucide-react';
+import { Briefcase, DollarSign, Thermometer, Zap, Sun, CloudRain, Wind, Flame, Droplets, type LucideIcon } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
 interface SpecificationFormProps {
@@ -16,17 +16,49 @@ interface SpecificationFormProps {
     isLoading?: boolean;
 }
 
+const DEFAULT_STRESS_VALUES = {
+    sun: 5,
+    wind: 5,
+    rain: 5,
+    fire: 5,
+    humidity: 5,
+} as const;
+
+type StressFactorId = keyof typeof DEFAULT_STRESS_VALUES;
+
+type StressFactor = {
+    id: StressFactorId;
+    label: string;
+    icon: LucideIcon;
+    color: string;
+};
+
+const stressFactors: StressFactor[] = [
+    { id: 'sun', label: 'Heat / UV Exposure', icon: Sun, color: 'text-orange-500' },
+    { id: 'wind', label: 'Airflow / Drafts', icon: Wind, color: 'text-sky-500' },
+    { id: 'rain', label: 'Rain / Precipitation', icon: CloudRain, color: 'text-cyan-500' },
+    { id: 'fire', label: 'Extreme Temperature / Fire Risk', icon: Flame, color: 'text-amber-500' },
+    { id: 'humidity', label: 'Humidity / Moisture Levels', icon: Droplets, color: 'text-indigo-500' },
+];
+
+function clampStressValue(value: number) {
+    if (!Number.isFinite(value)) return 1;
+    return Math.min(10, Math.max(1, value));
+}
+
 export function SpecificationForm({ onSubmit, isLoading }: SpecificationFormProps) {
     const [appType, setAppType] = useState<string>('Foundation');
     const [budget, setBudget] = useState<number>(50000);
     const [strength, setStrength] = useState<number>(0);
-    const [envHeat, setEnvHeat] = useState<number>(5);
-    const [envCold, setEnvCold] = useState<number>(5);
-    const [envHumidity, setEnvHumidity] = useState<number>(5);
-    const [envUV, setEnvUV] = useState<number>(5);
-    const [envRain, setEnvRain] = useState<number>(5);
-    const [envWind, setEnvWind] = useState<number>(5);
+    const [stressValues, setStressValues] = useState<Record<StressFactorId, number>>(DEFAULT_STRESS_VALUES);
     const [installTime, setInstallTime] = useState<'low' | 'high' | null>(null);
+
+    const updateStressValue = (id: StressFactorId, value: number) => {
+        setStressValues((current) => ({
+            ...current,
+            [id]: clampStressValue(value),
+        }));
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -34,14 +66,7 @@ export function SpecificationForm({ onSubmit, isLoading }: SpecificationFormProp
             application_type: appType,
             budget_constraint: budget,
             min_strength_mpa: strength > 0 ? strength : undefined,
-            environmental_conditions: {
-                heat: envHeat,
-                cold: envCold,
-                humidity: envHumidity,
-                uv: envUV,
-                rain: envRain,
-                wind: envWind
-            },
+            environmental_conditions: stressValues,
             installation_time_constraint: installTime
         });
     };
@@ -159,36 +184,32 @@ export function SpecificationForm({ onSubmit, isLoading }: SpecificationFormProp
                         </Label>
 
                         <div className="space-y-4">
-                            <div className="grid grid-cols-[24px_1fr_60px] items-center gap-3">
-                                <Sun className="h-4 w-4 text-orange-500" />
-                                <Slider value={[envHeat]} max={10} step={1} onValueChange={(v) => setEnvHeat(v[0])} className="flex-1" />
-                                <Input type="number" min={1} max={10} value={envHeat} onChange={e => setEnvHeat(Number(e.target.value))} className="h-7 w-14 text-center p-1" />
-                            </div>
-                            <div className="grid grid-cols-[24px_1fr_60px] items-center gap-3">
-                                <Wind className="h-4 w-4 text-blue-400" />
-                                <Slider value={[envCold]} max={10} step={1} onValueChange={(v) => setEnvCold(v[0])} className="flex-1" />
-                                <Input type="number" min={1} max={10} value={envCold} onChange={e => setEnvCold(Number(e.target.value))} className="h-7 w-14 text-center p-1" />
-                            </div>
-                            <div className="grid grid-cols-[24px_1fr_60px] items-center gap-3">
-                                <CloudRain className="h-4 w-4 text-indigo-500" />
-                                <Slider value={[envHumidity]} max={10} step={1} onValueChange={(v) => setEnvHumidity(v[0])} className="flex-1" />
-                                <Input type="number" min={1} max={10} value={envHumidity} onChange={e => setEnvHumidity(Number(e.target.value))} className="h-7 w-14 text-center p-1" />
-                            </div>
-                            <div className="grid grid-cols-[24px_1fr_60px] items-center gap-3">
-                                <Flame className="h-4 w-4 text-yellow-500" />
-                                <Slider value={[envUV]} max={10} step={1} onValueChange={(v) => setEnvUV(v[0])} className="flex-1" />
-                                <Input type="number" min={1} max={10} value={envUV} onChange={e => setEnvUV(Number(e.target.value))} className="h-7 w-14 text-center p-1" />
-                            </div>
-                            <div className="grid grid-cols-[24px_1fr_60px] items-center gap-3">
-                                <CloudRain className="h-4 w-4 text-cyan-500" />
-                                <Slider value={[envRain]} max={10} step={1} onValueChange={(v) => setEnvRain(v[0])} className="flex-1" />
-                                <Input type="number" min={1} max={10} value={envRain} onChange={e => setEnvRain(Number(e.target.value))} className="h-7 w-14 text-center p-1" />
-                            </div>
-                            <div className="grid grid-cols-[24px_1fr_60px] items-center gap-3">
-                                <Wind className="h-4 w-4 text-slate-500" />
-                                <Slider value={[envWind]} max={10} step={1} onValueChange={(v) => setEnvWind(v[0])} className="flex-1" />
-                                <Input type="number" min={1} max={10} value={envWind} onChange={e => setEnvWind(Number(e.target.value))} className="h-7 w-14 text-center p-1" />
-                            </div>
+                            {stressFactors.map(({ id, label, icon: Icon, color }) => (
+                                <div key={id} className="grid grid-cols-[24px_1fr_72px] items-center gap-3">
+                                    <Icon className={`h-4 w-4 ${color}`} aria-hidden="true" />
+                                    <div className="space-y-1">
+                                        <div className="text-xs font-medium text-slate-500">{label}</div>
+                                        <Slider
+                                            value={[stressValues[id]]}
+                                            min={1}
+                                            max={10}
+                                            step={1}
+                                            onValueChange={(value) => updateStressValue(id, value[0] ?? stressValues[id])}
+                                            className="flex-1"
+                                            aria-label={label}
+                                        />
+                                    </div>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={10}
+                                        value={stressValues[id]}
+                                        onChange={(e) => updateStressValue(id, Number(e.target.value))}
+                                        className="h-9 w-16 rounded-md border-slate-200 text-center"
+                                        aria-label={`${label} value`}
+                                    />
+                                </div>
+                            ))}
                         </div>
                     </div>
 

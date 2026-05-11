@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Pencil, Trash2, CheckCircle2, Calendar, MoreHorizontal, LayoutGrid, List, ArrowRight, XCircle, AlertCircle } from 'lucide-react';
@@ -184,6 +185,7 @@ function SortableTaskCard({ task, role, onEdit, onDelete }: { task: TaskWithRela
 
 export default function TasksPage() {
   const role = useRole();
+  const searchParams = useSearchParams();
   const [tasks, setTasks] = useState<TaskWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -309,7 +311,13 @@ export default function TasksPage() {
   }[status] || { label: status, color: 'bg-gray-50', border: 'border-gray-200', icon: CheckCircle2 });
 
 
-  const filteredTasks = tasks.filter(task => activeTab === "ALL" ? true : task.status === activeTab);
+  const queryFilter = searchParams.get('q')?.trim().toLowerCase();
+  const filteredTasks = tasks.filter(task => {
+    const matchesTab = activeTab === "ALL" ? true : task.status === activeTab;
+    const haystack = `${task.title} ${task.description || ''} ${task.project?.name || ''} ${task.assignedTo?.name || ''}`.toLowerCase();
+    const matchesQuery = queryFilter ? haystack.includes(queryFilter) : true;
+    return matchesTab && matchesQuery;
+  });
   const formatDate = (date: any) => date ? new Date(date).toLocaleDateString() : 'No date';
   const getStatusColor = (status: string) => {
     switch (status) {

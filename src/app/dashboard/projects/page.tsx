@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Pencil, Trash2, ListTodo, User, MoreHorizontal, Clock } from 'lucide-react';
@@ -33,6 +34,7 @@ import {
 
 export default function ProjectsPage() {
   const role = useRole();
+  const searchParams = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -113,6 +115,15 @@ export default function ProjectsPage() {
     return Math.round((completed / project.tasks.length) * 100);
   };
 
+  const statusFilter = searchParams.get('status');
+  const textFilter = searchParams.get('q')?.trim().toLowerCase();
+  const filteredProjects = projects.filter((project: any) => {
+    const matchesStatus = statusFilter ? project.status === statusFilter : true;
+    const haystack = `${project.name} ${project.description || ''} ${project.client?.name || ''} ${project.clientUser?.name || ''}`.toLowerCase();
+    const matchesText = textFilter ? haystack.includes(textFilter) : true;
+    return matchesStatus && matchesText;
+  });
+
   return (
     <div className="space-y-6 animate-fade-in-up">
       <PageHeader
@@ -126,7 +137,7 @@ export default function ProjectsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-64 w-full rounded-xl" />)}
         </div>
-      ) : projects.length === 0 ? (
+      ) : filteredProjects.length === 0 ? (
         <div className="text-center py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
           <div className="mx-auto h-12 w-12 text-slate-400 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
             <ListTodo className="h-6 w-6" />
@@ -141,7 +152,7 @@ export default function ProjectsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((project) => {
+          {filteredProjects.map((project) => {
             const progress = calculateProgress(project);
             return (
               <Link href={`/dashboard/projects/${project.id}`} key={project.id} className="block group">

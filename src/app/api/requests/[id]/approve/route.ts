@@ -66,11 +66,33 @@ export async function PATCH(
       switch (request.type) {
         case "ADD_PROJECT": {
           let clientId = payload.clientId || null;
+          let clientUserId = payload.clientUserId || null;
           let managerId = payload.managerId || null;
 
           if (clientId) {
             const clientExists = await prisma.client.findUnique({ where: { id: clientId } });
-            if (!clientExists) clientId = null;
+            if (!clientExists) {
+              clientId = null;
+            } else if (clientExists.email) {
+              const clientUser = await prisma.user.findFirst({
+                where: { email: clientExists.email, role: "CLIENT" },
+                select: { id: true },
+              });
+              clientUserId = clientUser?.id ?? null;
+            }
+          }
+          if (!clientId && clientUserId) {
+            const clientUser = await prisma.user.findUnique({
+              where: { id: clientUserId },
+              select: { email: true },
+            });
+            if (clientUser?.email) {
+              const client = await prisma.client.findFirst({
+                where: { email: clientUser.email },
+                select: { id: true },
+              });
+              clientId = client?.id ?? null;
+            }
           }
           if (managerId) {
             const managerExists = await prisma.user.findUnique({ where: { id: managerId } });
@@ -86,7 +108,10 @@ export async function PATCH(
               endDate: payload.endDate ? new Date(payload.endDate) : null,
               status: payload.status || "PLANNING",
               clientId: clientId,
+              clientUserId: clientUserId,
               managerId: managerId,
+              budget: payload.budget ? parseFloat(payload.budget) : 0,
+              spent: payload.spent ? parseFloat(payload.spent) : 0,
             },
           });
           break;
@@ -94,11 +119,33 @@ export async function PATCH(
 
         case "EDIT_PROJECT": {
           let clientId = payload.clientId;
+          let clientUserId = payload.clientUserId;
           let managerId = payload.managerId;
 
           if (clientId) {
             const clientExists = await prisma.client.findUnique({ where: { id: clientId } });
-            if (!clientExists) clientId = null;
+            if (!clientExists) {
+              clientId = null;
+            } else if (clientExists.email) {
+              const clientUser = await prisma.user.findFirst({
+                where: { email: clientExists.email, role: "CLIENT" },
+                select: { id: true },
+              });
+              clientUserId = clientUser?.id ?? null;
+            }
+          }
+          if (!clientId && clientUserId) {
+            const clientUser = await prisma.user.findUnique({
+              where: { id: clientUserId },
+              select: { email: true },
+            });
+            if (clientUser?.email) {
+              const client = await prisma.client.findFirst({
+                where: { email: clientUser.email },
+                select: { id: true },
+              });
+              clientId = client?.id ?? null;
+            }
           }
           if (managerId) {
             const managerExists = await prisma.user.findUnique({ where: { id: managerId } });
@@ -115,7 +162,10 @@ export async function PATCH(
               endDate: payload.endDate ? new Date(payload.endDate) : null,
               status: payload.status,
               clientId: clientId,
+              clientUserId: clientUserId,
               managerId: managerId,
+              budget: payload.budget === "" || payload.budget == null ? 0 : parseFloat(payload.budget),
+              spent: payload.spent === "" || payload.spent == null ? 0 : parseFloat(payload.spent),
             },
           });
           break;

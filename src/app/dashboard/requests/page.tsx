@@ -175,6 +175,7 @@ export default function RequestsPage() {
         actionLabel="Refresh"
         onActionClick={fetchRequests}
         actionIcon={RefreshCw}
+        actionLoading={loading}
       />
 
       <Tabs defaultValue="PENDING" onValueChange={setActiveTab} className="w-full">

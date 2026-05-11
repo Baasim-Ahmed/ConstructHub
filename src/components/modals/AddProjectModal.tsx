@@ -23,12 +23,11 @@ export function AddProjectModal({ open, onOpenChange, onSuccess, editProject }: 
   const { user } = useCurrentUser();
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [managers, setManagers] = useState<User[]>([]);
   const [formData, setFormData] = useState({
     name: editProject?.name || '',
     description: editProject?.description || '',
     clientId: (editProject as any)?.clientId || '',
-    clientUserId: (editProject as any)?.clientUserId || '',
     managerId: (editProject as any)?.managerId || '',
     status: (editProject as any)?.status || 'PLANNING',
     startDate: (editProject as any)?.startDate || '',
@@ -39,15 +38,25 @@ export function AddProjectModal({ open, onOpenChange, onSuccess, editProject }: 
 
   useEffect(() => {
     async function fetchData() {
-      const [clientsRes, usersRes] = await Promise.all([
-        fetch('/api/clients').then((r) => r.json()),
-        fetch('/api/users').then((r) => r.json()),
-      ]);
-      setClients(clientsRes || []);
-      setUsers(usersRes || []);
+      try {
+        const [clientsRes, usersRes] = await Promise.all([
+          fetch('/api/clients', { cache: 'no-store' }),
+          fetch('/api/users', { cache: 'no-store' }),
+        ]);
+        const clientsData = clientsRes.ok ? await clientsRes.json() : [];
+        const usersData = usersRes.ok ? await usersRes.json() : [];
+        setClients(clientsData || []);
+        setManagers((usersData || []).filter((candidate: User) => candidate.role === 'MANAGER'));
+      } catch (error) {
+        console.error(error);
+        toast.error('Failed to load project form options');
+      }
     }
-    fetchData();
-  }, []);
+
+    if (open) {
+      void fetchData();
+    }
+  }, [open]);
 
   useEffect(() => {
     if (user?.role === 'MANAGER' && !editProject) {
@@ -61,7 +70,6 @@ export function AddProjectModal({ open, onOpenChange, onSuccess, editProject }: 
         name: editProject.name,
         description: editProject.description || '',
         clientId: (editProject as any).clientId || '',
-        clientUserId: (editProject as any).clientUserId || '',
         managerId: (editProject as any).managerId || '',
         status: (editProject as any).status,
         startDate: (editProject as any).startDate || '',
@@ -80,7 +88,6 @@ export function AddProjectModal({ open, onOpenChange, onSuccess, editProject }: 
       const dataToSubmit = {
         ...formData,
         clientId: (formData as any).clientId || null,
-        clientUserId: (formData as any).clientUserId || null,
         managerId: (formData as any).managerId || null,
         startDate: (formData as any).startDate || null,
         endDate: (formData as any).endDate || null,
@@ -94,9 +101,12 @@ export function AddProjectModal({ open, onOpenChange, onSuccess, editProject }: 
           const res = await fetch(`/api/projects/${editProject.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...dataToSubmit, updatedAt: new Date().toISOString() }),
+            body: JSON.stringify(dataToSubmit),
           });
-          if (!res.ok) throw new Error('Failed to update project');
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to update project');
+          }
           toast.success('Project updated successfully');
         }
       } else {
@@ -109,7 +119,10 @@ export function AddProjectModal({ open, onOpenChange, onSuccess, editProject }: 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(dataToSubmit),
           });
-          if (!res.ok) throw new Error('Failed to add project');
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to add project');
+          }
           toast.success('Project added successfully');
         }
       }
@@ -120,7 +133,6 @@ export function AddProjectModal({ open, onOpenChange, onSuccess, editProject }: 
         name: '',
         description: '',
         clientId: '',
-        clientUserId: '',
         managerId: '',
         status: 'PLANNING',
         startDate: '',
@@ -143,6 +155,9 @@ export function AddProjectModal({ open, onOpenChange, onSuccess, editProject }: 
           <DialogDescription>
             {editProject ? 'Update project information' : 'Enter project details to create a new record'}
           </DialogDescription>
+          <p className="text-sm text-slate-500 mt-2">
+            Only <strong>Project Name</strong> is required. All other fields are optional.
+          </p>
           {user?.role === 'MANAGER' && !editProject && (
             <p className="text-sm text-amber-600 mt-2">
               <strong>Note:</strong> As a manager, this project will be submitted for admin approval before being added to the system.
@@ -177,35 +192,36 @@ export function AddProjectModal({ open, onOpenChange, onSuccess, editProject }: 
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="client">Client (User Account)</Label>
-              <Select value={(formData as any).clientUserId} onValueChange={(value) => setFormData({ ...formData, clientUserId: value, clientId: '' })}>
+              <Label htmlFor="client">Client</Label>
+              <Select value={(formData as any).clientId || undefined} onValueChange={(value) => setFormData({ ...formData, clientId: value === 'none' ? '' : value })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select client user" />
+                  <SelectValue placeholder="Select client" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none" disabled>Select Client User</SelectItem>
-                  {users.filter(u => u.role === 'CLIENT').map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.name} ({user.email})
+                  <SelectItem value="none">No client assigned</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}{client.companyName ? ` (${client.companyName})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
-                Select a registered Client User.
+                Client records created in the Clients module appear here automatically.
               </p>
             </div>
             {user?.role !== 'MANAGER' && (
               <div>
                 <Label htmlFor="manager">Project Manager</Label>
-                <Select value={(formData as any).managerId} onValueChange={(value) => setFormData({ ...formData, managerId: value })}>
+                <Select value={(formData as any).managerId || undefined} onValueChange={(value) => setFormData({ ...formData, managerId: value === 'none' ? '' : value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select manager" />
                   </SelectTrigger>
                   <SelectContent>
-                    {users.filter(u => u.role === 'MANAGER').map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.name}
+                    <SelectItem value="none">No manager assigned</SelectItem>
+                    {managers.map((manager) => (
+                      <SelectItem key={manager.id} value={manager.id}>
+                        {manager.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
