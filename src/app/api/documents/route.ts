@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getServerSessionOrNull, requireRole } from "@/lib/auth";
+import { toDocumentRecord } from "@/lib/documents";
 import { persistDocumentFile } from "@/lib/document-storage";
 
 export async function GET(req: Request) {
@@ -54,7 +55,9 @@ export async function GET(req: Request) {
     include: { uploadedBy: true, project: true, allowedViewers: true },
     orderBy: { uploadedAt: "desc" }
   });
-  return NextResponse.json(docs, {
+  const baseUrl = new URL(req.url).origin;
+  const records = docs.map((doc) => toDocumentRecord(baseUrl, doc));
+  return NextResponse.json(records, {
     headers: {
       "Cache-Control": "no-store, max-age=0",
       "Pragma": "no-cache",

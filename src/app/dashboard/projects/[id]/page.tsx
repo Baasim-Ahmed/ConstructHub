@@ -10,10 +10,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { toast } from 'sonner';
-import { Calendar, Clock, CheckSquare, Users, FileText, ArrowLeft, Cuboid, BrainCircuit } from 'lucide-react';
+import { Calendar, Download, Eye, FileText, ArrowLeft, Cuboid, BrainCircuit } from 'lucide-react';
 import { useRole, roleChecks } from '@/hooks/useCurrentUser';
 import { AddProjectModal } from '@/components/modals/AddProjectModal';
 import { DocumentViewerDialog } from '@/components/documents/DocumentViewerDialog';
+import { downloadDocumentAsPdf } from '@/lib/document-actions';
+import { DocumentRecord } from '@/lib/documents';
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
@@ -22,7 +24,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     const [project, setProject] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [editModalOpen, setEditModalOpen] = useState(false);
-    const [selectedDocument, setSelectedDocument] = useState<any>(null);
+    const [selectedDocument, setSelectedDocument] = useState<DocumentRecord | null>(null);
 
     const fetchProject = useCallback(async () => {
         if (!id) return;
@@ -250,13 +252,23 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {project.documents?.map((doc: any) => (
-                                        <div key={doc.id} className="p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedDocument(doc)}>
+                                    {project.documents?.map((doc: DocumentRecord) => (
+                                        <div key={doc.id} className="space-y-3 p-4 border rounded-lg hover:shadow-md transition-shadow">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <FileText className="h-5 w-5 text-blue-500" />
                                                 <span className="font-medium truncate">{doc.name}</span>
                                             </div>
                                             <p className="text-xs text-slate-400">Added {new Date(doc.uploadedAt).toLocaleDateString()}</p>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <Button variant="outline" size="sm" onClick={() => setSelectedDocument(doc)}>
+                                                    <Eye className="mr-2 h-4 w-4" />
+                                                    Preview
+                                                </Button>
+                                                <Button size="sm" onClick={() => void downloadDocumentAsPdf(doc).catch((error: Error) => toast.error(error.message))}>
+                                                    <Download className="mr-2 h-4 w-4" />
+                                                    Download
+                                                </Button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>

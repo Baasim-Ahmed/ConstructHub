@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { getServerSessionOrNull, requireRole } from "@/lib/auth";
+import { inferDocumentMimeType } from "@/lib/documents";
 import { readStoredDocument } from "@/lib/document-storage";
 
 export async function GET(req: Request, context: any) {
@@ -57,10 +58,11 @@ export async function GET(req: Request, context: any) {
 
   const disposition = new URL(req.url).searchParams.get("disposition") === "inline" ? "inline" : "attachment";
   const filename = path.basename(document.name);
+  const mimeType = inferDocumentMimeType(document.name, document.type, document.url);
 
   return new NextResponse(storedFile.buffer, {
     headers: {
-      "Content-Type": document.type || "application/octet-stream",
+      "Content-Type": mimeType,
       "Content-Length": String(storedFile.size),
       "Content-Disposition": `${disposition}; filename="${filename}"`,
       "Cache-Control": "no-store, max-age=0",

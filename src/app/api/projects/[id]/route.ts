@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSessionOrNull, requireRole } from "@/lib/auth";
+import { toDocumentRecord } from "@/lib/documents";
 
 async function resolveProjectClientLinks(clientId?: string | null, clientUserId?: string | null) {
   let finalClientId = clientId || null;
@@ -45,10 +46,14 @@ export async function GET(req: Request, context: any) {
 
   const project = await prisma.project.findUnique({
     where: { id: params.id },
-    include: { client: true, clientUser: true, tasks: true, manager: true, documents: true },
+    include: { client: true, clientUser: true, tasks: true, manager: true, documents: { include: { uploadedBy: true, project: true } } },
   });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-  return NextResponse.json(project);
+  const baseUrl = new URL(req.url).origin;
+  return NextResponse.json({
+    ...project,
+    documents: project.documents.map((document) => toDocumentRecord(baseUrl, document)),
+  });
 }
 
 export async function PUT(req: Request, context: any) {

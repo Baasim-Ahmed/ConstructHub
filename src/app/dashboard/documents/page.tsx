@@ -3,8 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Download, Trash2, Pencil, FileText, Calendar, User } from 'lucide-react';
-import type { Document } from '@prisma/client';
+import { Download, Eye, Trash2, Pencil, FileText, Calendar } from 'lucide-react';
 import { AddDocumentModal } from '@/components/modals/AddDocumentModal';
 import { useRole, roleChecks } from '@/hooks/useCurrentUser';
 import { useRefetchOnRoleChange } from '@/hooks/useRefetchOnRoleChange';
@@ -30,25 +29,26 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from 'lucide-react';
 import { DocumentViewerDialog } from '@/components/documents/DocumentViewerDialog';
-import { downloadDocument } from '@/lib/document-actions';
+import { downloadDocumentAsPdf } from '@/lib/document-actions';
+import { DocumentRecord } from '@/lib/documents';
 
 export default function DocumentsPage() {
   const role = useRole();
-  const [documents, setDocuments] = useState<Document[]>([]);
+  const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editDocument, setEditDocument] = useState<Document | null>(null);
+  const [editDocument, setEditDocument] = useState<DocumentRecord | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
-  const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<DocumentRecord | null>(null);
 
   const fetchDocuments = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/documents');
       if (!res.ok) throw new Error('Failed to fetch documents');
-      const data: Document[] = await res.json();
-      data.sort((a, b) => new Date((b as any).uploadedAt).getTime() - new Date((a as any).uploadedAt).getTime());
+      const data: DocumentRecord[] = await res.json();
+      data.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
       setDocuments(data || []);
     } catch (err) {
       console.error(err);
@@ -63,7 +63,7 @@ export default function DocumentsPage() {
 
   useRefetchOnRoleChange(fetchDocuments);
 
-  const handleEdit = (document: Document) => {
+  const handleEdit = (document: DocumentRecord) => {
     setEditDocument(document);
     setModalOpen(true);
   };
@@ -125,7 +125,7 @@ export default function DocumentsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {documents.map((doc) => (
-            <Card key={doc.id} className="group hover:shadow-lg transition-all duration-300 border-slate-200 cursor-pointer" onClick={() => setSelectedDocument(doc)}>
+            <Card key={doc.id} className="group hover:shadow-lg transition-all duration-300 border-slate-200">
               <CardContent className="p-5 flex flex-col h-full">
                 <div className="flex justify-between items-start mb-4">
                   <div className="h-10 w-10 bg-red-100 rounded-lg flex items-center justify-center text-red-600">
@@ -157,37 +157,31 @@ export default function DocumentsPage() {
                 <div className="mt-auto space-y-3">
                   <div className="flex items-center gap-2 text-xs text-slate-500">
                     <Badge variant="secondary" className="font-normal truncate max-w-[120px]">
-                      {(doc as any).project?.name || 'No Project'}
+                      {doc.project?.name || 'No Project'}
                     </Badge>
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <div className="flex flex-col gap-0.5" title={`Uploaded by ${(doc as any).uploadedBy?.name}`}>
+                    <div className="flex flex-col gap-0.5" title={`Uploaded by ${doc.uploadedBy?.name ?? 'Unknown user'}`}>
                       <span className="text-[10px] text-slate-400 uppercase font-semibold">Uploaded</span>
                       <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
                         <Calendar className="h-3 w-3" />
-                        {formatDate((doc as any).uploadedAt)}
+                        {formatDate(doc.uploadedAt)}
                       </div>
                     </div>
-
-                    {doc.url ? (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-blue-600 bg-blue-50 hover:bg-blue-100 hover:text-blue-700 rounded-full"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void downloadDocument(doc).catch((error: Error) => toast.error(error.message));
-                        }}
-                        title="Download document"
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    ) : (
-                      <Button size="icon" variant="ghost" disabled className="h-8 w-8 text-slate-300">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" className="w-full" onClick={() => setSelectedDocument(doc)}>
+                      <Eye className="mr-2 h-4 w-4" />
+                      Preview
+                    </Button>
+                    <Button
+                      className="w-full"
+                      onClick={() => void downloadDocumentAsPdf(doc).catch((error: Error) => toast.error(error.message))}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Download
+                    </Button>
                   </div>
                 </div>
               </CardContent>

@@ -6,17 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Document, Project, User } from '@prisma/client';
+import type { Project, User } from '@prisma/client';
 import { toast } from 'sonner';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Upload } from 'lucide-react';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { DocumentRecord } from '@/lib/documents';
 
 interface AddDocumentModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  editDocument?: Document | null;
+  editDocument?: DocumentRecord | null;
 }
 
 export function AddDocumentModal({ open, onOpenChange, onSuccess, editDocument }: AddDocumentModalProps) {
