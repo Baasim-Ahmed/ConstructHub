@@ -8,6 +8,12 @@ const MODULE_BUILD_ROOT = path.join(
   "Safety-Detection-And-Productivity-Analysis",
   "build"
 );
+const PUBLIC_BUILD_ROOT = path.join(
+  process.cwd(),
+  "public",
+  "safety-detection",
+  "app"
+);
 
 const CONTENT_TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
@@ -27,10 +33,10 @@ const CONTENT_TYPES: Record<string, string> = {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function resolveSafePath(assetSegments: string[] | undefined) {
+function resolveSafePath(root: string, assetSegments: string[] | undefined) {
   const relativeAssetPath = assetSegments?.length ? assetSegments.join("/") : "index.html";
-  const resolvedPath = path.resolve(MODULE_BUILD_ROOT, relativeAssetPath);
-  const relativeToBuild = path.relative(MODULE_BUILD_ROOT, resolvedPath);
+  const resolvedPath = path.resolve(root, relativeAssetPath);
+  const relativeToBuild = path.relative(root, resolvedPath);
 
   if (relativeToBuild.startsWith("..") || path.isAbsolute(relativeToBuild)) {
     return null;
@@ -65,25 +71,28 @@ export async function GET(
   context: { params: Promise<{ asset?: string[] }> }
 ) {
   const { asset } = await context.params;
+  const candidateRoots = [PUBLIC_BUILD_ROOT, MODULE_BUILD_ROOT];
 
-  const candidatePath = resolveSafePath(asset);
-  if (!candidatePath) {
-    return NextResponse.json({ error: "Invalid asset path." }, { status: 400 });
-  }
+  for (const root of candidateRoots) {
+    const candidatePath = resolveSafePath(root, asset);
+    if (!candidatePath) {
+      return NextResponse.json({ error: "Invalid asset path." }, { status: 400 });
+    }
 
-  if (await fileExists(candidatePath)) {
-    return serveFile(candidatePath);
-  }
+    if (await fileExists(candidatePath)) {
+      return serveFile(candidatePath);
+    }
 
-  const indexPath = path.join(MODULE_BUILD_ROOT, "index.html");
-  if (await fileExists(indexPath)) {
-    return serveFile(indexPath);
+    const indexPath = path.join(root, "index.html");
+    if (await fileExists(indexPath)) {
+      return serveFile(indexPath);
+    }
   }
 
   return NextResponse.json(
     {
       error: "Safety Detection frontend build is missing.",
-      detail: "Run the module frontend build to serve the preserved UI from this route.",
+      detail: "The deployment did not generate the Safety Detection static bundle for this route.",
     },
     { status: 503 }
   );

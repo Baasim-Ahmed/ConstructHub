@@ -1,0 +1,11 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "redirects": [
+    {
+      "source": "/safety",
+      "destination": "/dashboard/safety-detection",
+      "permanent": false
+    }
+  ]
+}

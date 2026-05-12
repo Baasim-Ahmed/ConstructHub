@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/safety-detection/app/static/css/main.2c8b7d44.css",
+    "main.js": "/safety-detection/app/static/js/main.f8f5cf0a.js",
+    "index.html": "/safety-detection/app/index.html",
+    "main.2c8b7d44.css.map": "/safety-detection/app/static/css/main.2c8b7d44.css.map",
+    "main.f8f5cf0a.js.map": "/safety-detection/app/static/js/main.f8f5cf0a.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.2c8b7d44.css",
+    "static/js/main.f8f5cf0a.js"
+  ]
+}
