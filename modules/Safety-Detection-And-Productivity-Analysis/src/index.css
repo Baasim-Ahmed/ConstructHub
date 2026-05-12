@@ -9,6 +9,10 @@ body,
   width: 100%;
   font-family: "Source Sans Pro", sans-serif;
 }
+.content {
+  overflow-y: auto;
+  background: #f8f9fa;
+}
 button,
 input[type="submit"],
 input[type="reset"] {
@@ -32,7 +36,7 @@ font-family: "Source Sans Pro", sans-serif;
 }
 
 .drag-drop-box:hover {
-background-color: #70d8bd;
+background-color: #fff0e4;
   /* Example hover background color */
 }
 
@@ -54,6 +58,7 @@ background-color: #70d8bd;
 .app {
   display: flex;
   position: relative;
+  background: #f8f9fa;
 }
 
 ::-webkit-scrollbar {

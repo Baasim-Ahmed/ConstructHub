@@ -17,6 +17,14 @@ import {
 const Dashboard = () => {
   const theme = useTheme();
   const colors = tokens(theme.palette.mode);
+  const rightArmColor = colors.blueAccent[500];
+  const leftArmColor = colors.grey[500];
+  const panelStyles = {
+    backgroundColor: colors.primary[400],
+    border: `1px solid ${colors.primary[700]}`,
+    borderRadius: "20px",
+    boxShadow: "0 20px 50px rgba(15, 23, 42, 0.08)",
+  };
   const [rightArmSeries, setRightArmSeries] = useState([]);
   const [leftArmSeries, setLeftArmSeries] = useState([]);
   const [progress, setProgress] = useState(0);
@@ -35,10 +43,10 @@ const Dashboard = () => {
     }
 
     setRightArmSeries(
-      buildLineSeries(analysis.rightArmAngles, "Right Arm", tokens("dark").greenAccent[500])
+      buildLineSeries(analysis.rightArmAngles, "Right Arm", rightArmColor)
     );
     setLeftArmSeries(
-      buildLineSeries(analysis.leftArmAngles, "Left Arm", tokens("dark").blueAccent[400])
+      buildLineSeries(analysis.leftArmAngles, "Left Arm", leftArmColor)
     );
     setStatCards(buildSafetyStatCards(analysis));
     setCountPieData(
@@ -59,7 +67,7 @@ const Dashboard = () => {
     setProcessedFrames(analysis.frameCount || analysis.rightArmAngles.length || 0);
     setDurationSeconds(analysis.durationSeconds || 0);
     setProductivityRate(analysis.threshold || 0);
-  }, []);
+  }, [leftArmColor, rightArmColor]);
 
   const handlePrint = () => {
     window.print();
@@ -69,7 +77,7 @@ const Dashboard = () => {
   const remainingSummary = countPieData[1]?.id || "Upload a video to analyze work cycles";
 
   return (
-    <Box m="20px">
+    <Box m="20px" pb="24px">
       <Box display="flex" justifyContent="space-between" alignItems="center">
         <Header title="DASHBOARD" subtitle="Live safety and productivity analytics" />
 
@@ -77,11 +85,16 @@ const Dashboard = () => {
           <Button
             onClick={handlePrint}
             sx={{
-              backgroundColor: colors.blueAccent[700],
-              color: colors.grey[100],
+              backgroundColor: colors.greenAccent[500],
+              color: colors.primary[400],
               fontSize: "14px",
               fontWeight: "bold",
               padding: "10px 20px",
+              borderRadius: "12px",
+              boxShadow: "0 18px 36px rgba(244, 106, 6, 0.24)",
+              "&:hover": {
+                backgroundColor: colors.greenAccent[600],
+              },
             }}
           >
             <DownloadOutlinedIcon sx={{ mr: "10px" }} />
@@ -100,10 +113,10 @@ const Dashboard = () => {
           <Box
             key={item.id}
             gridColumn="span 3"
-            backgroundColor={colors.primary[400]}
             display="flex"
             alignItems="center"
             justifyContent="center"
+            sx={panelStyles}
           >
             <StatBox
               title={item.id}
@@ -116,7 +129,7 @@ const Dashboard = () => {
         <Box
           gridColumn="span 8"
           gridRow="span 2"
-          backgroundColor={colors.primary[400]}
+          sx={panelStyles}
         >
           <Box
             mt="25px"
@@ -136,11 +149,11 @@ const Dashboard = () => {
               <Typography
                 variant="h3"
                 fontWeight="bold"
-                color={colors.greenAccent[500]}
+                color={colors.blueAccent[500]}
               >
                 {processedFrames} tracked frames
               </Typography>
-              <Typography color={colors.grey[300]}>
+              <Typography color={colors.grey[500]}>
                 {durationSeconds.toFixed(2)} seconds analyzed
               </Typography>
             </Box>
@@ -160,10 +173,10 @@ const Dashboard = () => {
         <Box
           gridColumn="span 4"
           gridRow="span 2"
-          backgroundColor={colors.primary[400]}
           p="30px"
+          sx={panelStyles}
         >
-          <Typography variant="h5" fontWeight="600">
+          <Typography variant="h5" fontWeight="600" color={colors.grey[100]}>
             Productivity
           </Typography>
           <Box
@@ -180,14 +193,16 @@ const Dashboard = () => {
             >
               Worker performance: {performance}
             </Typography>
-            <Typography>Schedule outlook: {time}</Typography>
-            <Typography>Measured rate: {productivityRate.toFixed(2)} cycles/s</Typography>
+            <Typography color={colors.grey[500]}>Schedule outlook: {time}</Typography>
+            <Typography color={colors.grey[500]}>
+              Measured rate: {productivityRate.toFixed(2)} cycles/s
+            </Typography>
           </Box>
         </Box>
         <Box
           gridColumn="span 8"
           gridRow="span 2"
-          backgroundColor={colors.primary[400]}
+          sx={panelStyles}
         >
           <Box
             mt="25px"
@@ -220,10 +235,10 @@ const Dashboard = () => {
         <Box
           gridColumn="span 4"
           gridRow="span 2"
-          backgroundColor={colors.primary[400]}
           p="30px"
+          sx={panelStyles}
         >
-          <Typography variant="h5" fontWeight="600">
+          <Typography variant="h5" fontWeight="600" color={colors.grey[100]}>
             Count Summary
           </Typography>
           <Box
@@ -240,7 +255,7 @@ const Dashboard = () => {
             >
               {countSummary}
             </Typography>
-            <Typography>{remainingSummary}</Typography>
+            <Typography color={colors.grey[500]}>{remainingSummary}</Typography>
           </Box>
         </Box>
       </Box>

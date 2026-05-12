@@ -26,12 +26,12 @@ const Item = ({ title, to, icon, selected, setSelected }) => {
     <MenuItem
       active={selected === title}
       style={{
-        color: colors.grey[100],
+        color: colors.grey[700],
       }}
       onClick={() => setSelected(title)}
       icon={icon}
     >
-      <Typography>{title}</Typography>
+      <Typography fontWeight={selected === title ? 700 : 500}>{title}</Typography>
       <Link to={to} />
     </MenuItem>
   );
@@ -48,21 +48,28 @@ const Sidebar = () => {
     <Box
       className="sidebar-wrapper"
       sx={{
-        background: `${colors.primary[400]} !important`,
+        background: `${colors.primary[100]} !important`,
         "& .pro-sidebar-inner": {
-          background: `${colors.primary[400]} !important`,
+          background: `${colors.primary[100]} !important`,
         },
         "& .pro-icon-wrapper": {
           backgroundColor: "transparent !important",
         },
         "& .pro-inner-item": {
-          padding: "5px 35px 5px 20px !important",
+          padding: "10px 20px 10px 18px !important",
+          borderRadius: "12px !important",
+          margin: "4px 10px !important",
         },
         "& .pro-inner-item:hover": {
-          color: "#868dfb !important",
+          color: `${colors.greenAccent[500]} !important`,
+          backgroundColor: "rgba(244, 106, 6, 0.1) !important",
         },
         "& .pro-menu-item.active": {
-          color: "#6870fa !important",
+          color: `${colors.greenAccent[500]} !important`,
+        },
+        "& .pro-menu-item.active .pro-inner-item": {
+          backgroundColor: "rgba(244, 106, 6, 0.14) !important",
+          borderLeft: `3px solid ${colors.greenAccent[500]}`,
         },
       }}
     >
@@ -74,7 +81,7 @@ const Sidebar = () => {
             icon={isCollapsed ? <MenuOutlinedIcon /> : undefined}
             style={{
               margin: "10px 0 20px 0",
-              color: colors.grey[100],
+              color: colors.grey[900],
             }}
           >
             {!isCollapsed && (
@@ -85,7 +92,7 @@ const Sidebar = () => {
                 ml="15px"
               >
                 <IconButton onClick={() => setIsCollapsed(!isCollapsed)}>
-                  <MenuOutlinedIcon />
+                  <MenuOutlinedIcon sx={{ color: colors.grey[900] }} />
                 </IconButton>
               </Box>
             )}
@@ -99,14 +106,14 @@ const Sidebar = () => {
               <Box textAlign="center">
                 <Typography
                   variant="h2"
-                  color={colors.grey[100]}
+                  color={colors.grey[900]}
                   fontWeight="bold"
                   sx={{ m: "10px 0 0 0" }}
                 >
                   {user.fullName}
                 </Typography>
-                <Typography variant="h5" color={colors.greenAccent[500]}>
-                  VP Fancy Admin
+                <Typography variant="h5" color={colors.greenAccent[400]}>
+                  Safety Workspace
                 </Typography>
               </Box>
             </Box>
@@ -123,7 +130,7 @@ const Sidebar = () => {
 
             <Typography
               variant="h6"
-              color={colors.grey[300]}
+              color={colors.grey[600]}
               sx={{ m: "15px 0 5px 20px" }}
             >
               Data
@@ -181,7 +188,7 @@ const Sidebar = () => {
 
             <Typography
               variant="h6"
-              color={colors.grey[300]}
+              color={colors.grey[600]}
               sx={{ m: "15px 0 5px 20px" }}
             >
               Charts

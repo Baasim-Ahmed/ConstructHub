@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"; // Import useState
+import React, { useEffect, useState } from "react";
 import { ResponsiveLine } from "@nivo/line";
 import { useTheme } from "@mui/material";
 import { tokens } from "../theme";
@@ -18,9 +18,7 @@ const LineChart = ({
   const findPeaks = (data) => {
     const peaks = [];
 
-    console.log("data", data[0].data);
     for (let i = 1; i < data[0].data.length - 2; i++) {
-      console.log("i", i);
       const prev = data[0].data[i - 1].y;
       const current = data[0].data[i].y;
       const next = data[0].data[i + 1].y;
@@ -53,24 +51,34 @@ const LineChart = ({
     }
   }, [data]);
 
-  useEffect(() => {
-    console.log("peak", peakXValues);
-  }, [peakXValues]);
-
   return (
     <ResponsiveLine
       data={data}
       theme={{
         axis: {
-          domain: { line: { stroke: colors.grey[100] } },
-          legend: { text: { fill: colors.grey[100] } },
+          domain: { line: { stroke: colors.primary[700] } },
+          legend: { text: { fill: colors.grey[400] } },
           ticks: {
-            line: { stroke: colors.grey[100], strokeWidth: 1 },
-            text: { fill: colors.grey[100] },
+            line: { stroke: colors.primary[700], strokeWidth: 1 },
+            text: { fill: colors.grey[500] },
           },
         },
-        legends: { text: { fill: colors.grey[100] } },
-        tooltip: { container: { color: colors.primary[500] } },
+        grid: {
+          line: {
+            stroke: colors.primary[700],
+            strokeWidth: 1,
+          },
+        },
+        legends: { text: { fill: colors.grey[400] } },
+        tooltip: {
+          container: {
+            background: colors.primary[400],
+            color: colors.grey[200],
+            border: `1px solid ${colors.primary[700]}`,
+            borderRadius: "12px",
+            boxShadow: "0 16px 40px rgba(15, 23, 42, 0.12)",
+          },
+        },
       }}
       colors={isDashboard ? { datum: "color" } : { scheme: "nivo" }}
       margin={{ top: 50, right: 110, bottom: 50, left: 60 }}
@@ -107,7 +115,7 @@ const LineChart = ({
         legendPosition: "middle",
       }}
       enableGridX={false}
-      enableGridY={false}
+      enableGridY={true}
       pointSize={8}
       pointColor={{ theme: "background" }}
       pointBorderWidth={2}
