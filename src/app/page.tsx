@@ -178,9 +178,6 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <Button variant="outline" className="h-12 px-8 rounded-md border-2 border-foreground text-foreground hover:bg-foreground hover:text-background font-bold uppercase transition-colors">
-                Explore Roles
-              </Button>
             </div>
           </div>
         </div>
@@ -200,12 +197,9 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/login">
               <Button size="xl" className="h-16 rounded-md px-12 text-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-bold uppercase shadow-2xl">
-                Start Free Trial
+                Access Portal
               </Button>
             </Link>
-            <Button variant="ghost" size="xl" className="h-16 rounded-md px-12 text-lg text-background border border-background/20 hover:bg-background/10 font-bold uppercase">
-              Schedule Demo
-            </Button>
           </div>
         </div>
       </section>

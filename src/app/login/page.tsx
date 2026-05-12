@@ -127,10 +127,6 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-
-          <div className="pt-6 text-center text-sm text-slate-400">
-            <p>Don't have an account? <span className="text-orange-600 font-semibold cursor-pointer hover:underline">Contact Admin</span></p>
-          </div>
         </div>
       </div>
     </div>

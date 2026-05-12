@@ -319,11 +319,6 @@ export function AdminDashboard({ greeting, userName }: { greeting: string, userN
                                 </div>
                             </ScrollArea>
                         </CardContent>
-                        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-                            <Button variant="ghost" className="w-full text-sm text-slate-500 hover:text-blue-600">
-                                View All Activity
-                            </Button>
-                        </div>
                     </Card>
                 </div>
 

@@ -75,13 +75,8 @@ export default function MaterialAIPage() {
         }
     };
 
-    const handleAddCustomMaterial = async (material: Material) => {
-        const payload: CreateMaterialInput = {
-            ...material,
-            id: material.id > 0 ? material.id : undefined,
-        };
-
-        await createMaterialCatalogEntry(payload);
+    const handleAddCustomMaterial = async (material: CreateMaterialInput) => {
+        await createMaterialCatalogEntry(material);
         await loadCatalog(lastSpecs);
     };
 

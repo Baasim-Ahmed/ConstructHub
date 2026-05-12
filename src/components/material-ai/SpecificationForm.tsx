@@ -10,32 +10,29 @@ import { Slider } from '@/components/ui/slider';
 import { ProjectSpecs } from '@/lib/material-ai/types';
 import { Briefcase, DollarSign, Thermometer, Zap, Sun, CloudRain, Wind, Flame, Droplets, type LucideIcon } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import {
+    DEFAULT_ENVIRONMENTAL_STRESS_PROFILE,
+    ENVIRONMENTAL_STRESS_FIELDS,
+    MATERIAL_APPLICATIONS,
+    MaterialApplication,
+    type EnvironmentalStressField,
+} from '@/lib/material-ai/constants';
 
 interface SpecificationFormProps {
     onSubmit: (specs: ProjectSpecs) => void;
     isLoading?: boolean;
 }
 
-const DEFAULT_STRESS_VALUES = {
-    sun: 5,
-    wind: 5,
-    rain: 5,
-    fire: 5,
-    humidity: 5,
-} as const;
-
-type StressFactorId = keyof typeof DEFAULT_STRESS_VALUES;
-
 type StressFactor = {
-    id: StressFactorId;
+    id: EnvironmentalStressField;
     label: string;
     icon: LucideIcon;
     color: string;
 };
 
 const stressFactors: StressFactor[] = [
-    { id: 'sun', label: 'Heat / UV Exposure', icon: Sun, color: 'text-orange-500' },
-    { id: 'wind', label: 'Airflow / Drafts', icon: Wind, color: 'text-sky-500' },
+    { id: 'heatUv', label: 'Heat / UV Exposure', icon: Sun, color: 'text-orange-500' },
+    { id: 'airflow', label: 'Airflow / Drafts', icon: Wind, color: 'text-sky-500' },
     { id: 'rain', label: 'Rain / Precipitation', icon: CloudRain, color: 'text-cyan-500' },
     { id: 'fire', label: 'Extreme Temperature / Fire Risk', icon: Flame, color: 'text-amber-500' },
     { id: 'humidity', label: 'Humidity / Moisture Levels', icon: Droplets, color: 'text-indigo-500' },
@@ -47,13 +44,13 @@ function clampStressValue(value: number) {
 }
 
 export function SpecificationForm({ onSubmit, isLoading }: SpecificationFormProps) {
-    const [appType, setAppType] = useState<string>('Foundation');
+    const [appType, setAppType] = useState<MaterialApplication>('Foundation');
     const [budget, setBudget] = useState<number>(50000);
     const [strength, setStrength] = useState<number>(0);
-    const [stressValues, setStressValues] = useState<Record<StressFactorId, number>>(DEFAULT_STRESS_VALUES);
+    const [stressValues, setStressValues] = useState(DEFAULT_ENVIRONMENTAL_STRESS_PROFILE);
     const [installTime, setInstallTime] = useState<'low' | 'high' | null>(null);
 
-    const updateStressValue = (id: StressFactorId, value: number) => {
+    const updateStressValue = (id: EnvironmentalStressField, value: number) => {
         setStressValues((current) => ({
             ...current,
             [id]: clampStressValue(value),
@@ -91,18 +88,16 @@ export function SpecificationForm({ onSubmit, isLoading }: SpecificationFormProp
                     <div className="space-y-5">
                         <div className="space-y-2">
                             <Label className="text-xs uppercase tracking-wider text-slate-500 font-semibold">Application</Label>
-                            <Select value={appType} onValueChange={setAppType}>
+                            <Select value={appType} onValueChange={(value) => setAppType(value as MaterialApplication)}>
                                 <SelectTrigger className="h-11 bg-slate-50 border-slate-200 hover:border-emerald-500 transition-colors">
                                     <SelectValue placeholder="Select Application" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Foundation">Foundation</SelectItem>
-                                    <SelectItem value="Structural">Structural</SelectItem>
-                                    <SelectItem value="Flooring">Flooring</SelectItem>
-                                    <SelectItem value="Facade">Facade</SelectItem>
-                                    <SelectItem value="Wall">Wall</SelectItem>
-                                    <SelectItem value="Windows">Windows</SelectItem>
-                                    <SelectItem value="Doors">Doors</SelectItem>
+                                    {MATERIAL_APPLICATIONS.map((application) => (
+                                        <SelectItem key={application} value={application}>
+                                            {application}
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -184,7 +179,11 @@ export function SpecificationForm({ onSubmit, isLoading }: SpecificationFormProp
                         </Label>
 
                         <div className="space-y-4">
-                            {stressFactors.map(({ id, label, icon: Icon, color }) => (
+                            {ENVIRONMENTAL_STRESS_FIELDS.map(({ id, label }) => {
+                                const config = stressFactors.find((factor) => factor.id === id);
+                                if (!config) return null;
+                                const { icon: Icon, color } = config;
+                                return (
                                 <div key={id} className="grid grid-cols-[24px_1fr_72px] items-center gap-3">
                                     <Icon className={`h-4 w-4 ${color}`} aria-hidden="true" />
                                     <div className="space-y-1">
@@ -209,7 +208,8 @@ export function SpecificationForm({ onSubmit, isLoading }: SpecificationFormProp
                                         aria-label={`${label} value`}
                                     />
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
 

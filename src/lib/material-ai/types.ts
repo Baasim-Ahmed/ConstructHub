@@ -1,3 +1,8 @@
+import type {
+    EnvironmentalStressProfile,
+    MaterialApplication,
+} from "./constants";
+
 export type MaterialDataQuality = 'verified' | 'estimated' | 'unknown';
 
 export type MaterialApiErrorCode =
@@ -19,24 +24,6 @@ export type MaterialSanitizationIssueCode =
     | 'deduplicated_list'
     | 'invalid_value';
 
-export interface WeatherResistance {
-    heat: number;
-    cold: number;
-    humidity: number;
-    uv: number;
-}
-
-export interface EnvironmentalConditions {
-    sun: number;
-    wind: number;
-    rain: number;
-    fire: number;
-    humidity: number;
-    cold?: number;
-    heat?: number;
-    uv?: number;
-}
-
 export interface Supplier {
     id: string;
     name: string;
@@ -52,7 +39,7 @@ export interface Material {
     id: number;
     name: string;
     type: string;
-    applications: string[];
+    applications: MaterialApplication[];
     strength_mpa: number;
     durability_years: number;
     thermal_conductivity: number;
@@ -62,7 +49,7 @@ export interface Material {
     cost_per_unit: number;
     availability: number;
     maintenance_requirement: number;
-    weather_resistance: WeatherResistance;
+    weather_resistance: EnvironmentalStressProfile;
     installation_complexity: number;
     supplier_id: string;
     supplier_name?: string;
@@ -151,7 +138,7 @@ export interface MaterialApiClientConfig {
 }
 
 export interface ProjectSpecs {
-    application_type: string;
+    application_type: MaterialApplication;
     material_types?: string[];
     project_city?: string;
     required_standard_or_grade?: string;
@@ -163,9 +150,11 @@ export interface ProjectSpecs {
     eco_friendly_requirement?: number;
     budget_constraint?: number;
     price_sensitivity?: 'low' | 'medium' | 'high';
-    environmental_conditions?: EnvironmentalConditions;
+    environmental_conditions?: EnvironmentalStressProfile;
     installation_time_constraint?: 'low' | 'high' | null;
 }
+
+export type RecommendationRequest = ProjectSpecs;
 
 export interface ScoredMaterial extends Material {
     match_score: number;

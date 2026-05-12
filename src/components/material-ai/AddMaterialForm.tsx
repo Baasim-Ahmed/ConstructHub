@@ -8,18 +8,26 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Material } from "@/lib/material-ai/types";
+import { CreateMaterialInput } from "@/lib/material-ai/types";
 import { Plus } from "lucide-react";
+import {
+    DEFAULT_ENVIRONMENTAL_STRESS_PROFILE,
+    ENVIRONMENTAL_STRESS_FIELDS,
+    MATERIAL_APPLICATIONS,
+    MaterialApplication,
+    type EnvironmentalStressField,
+} from "@/lib/material-ai/constants";
 
 interface AddMaterialFormProps {
-    onAdd: (material: Material) => Promise<void>;
+    onAdd: (material: CreateMaterialInput) => Promise<void>;
 }
 
 const MATERIAL_TYPES = ["Concrete", "Steel", "Stone", "Wood", "Ceramic", "Glass", "Bitumen", "Coating", "Other"];
-const APPLICATIONS = [
-    "Foundation", "Structural", "Flooring", "Wall",
-    "Roofing", "Facade", "Interior Finishing", "Insulation"
-];
+
+function clampStressValue(value: number) {
+    if (!Number.isFinite(value)) return 1;
+    return Math.min(10, Math.max(1, value));
+}
 
 export function AddMaterialForm({ onAdd }: AddMaterialFormProps) {
     const [open, setOpen] = useState(false);
@@ -38,19 +46,23 @@ export function AddMaterialForm({ onAdd }: AddMaterialFormProps) {
     const [waterRes, setWaterRes] = useState(5);
 
     // Weather Resistance
-    const [heat, setHeat] = useState(5);
-    const [cold, setCold] = useState(5);
-    const [humidity, setHumidity] = useState(5);
-    const [uv, setUv] = useState(5);
+    const [environmentalStress, setEnvironmentalStress] = useState(DEFAULT_ENVIRONMENTAL_STRESS_PROFILE);
 
-    const [selectedApps, setSelectedApps] = useState<string[]>([]);
+    const [selectedApps, setSelectedApps] = useState<MaterialApplication[]>([]);
 
-    const handleAppToggle = (app: string) => {
+    const handleAppToggle = (app: MaterialApplication) => {
         if (selectedApps.includes(app)) {
             setSelectedApps(selectedApps.filter(a => a !== app));
         } else {
             setSelectedApps([...selectedApps, app]);
         }
+    };
+
+    const updateEnvironmentalStress = (field: EnvironmentalStressField, value: number) => {
+        setEnvironmentalStress((current) => ({
+            ...current,
+            [field]: clampStressValue(value),
+        }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -61,8 +73,7 @@ export function AddMaterialForm({ onAdd }: AddMaterialFormProps) {
             return;
         }
 
-        const newMaterial: Material = {
-            id: 0, // Assigned by engine
+        const newMaterial: CreateMaterialInput = {
             name,
             type,
             applications: selectedApps,
@@ -73,9 +84,7 @@ export function AddMaterialForm({ onAdd }: AddMaterialFormProps) {
             maintenance_requirement: maintenance,
             installation_complexity: complexity,
             water_resistance: waterRes,
-            weather_resistance: {
-                heat, cold, humidity, uv
-            },
+            weather_resistance: environmentalStress,
             thermal_conductivity: 0.5,
             fire_resistance_hours: 2,
             availability: 8,
@@ -108,10 +117,7 @@ export function AddMaterialForm({ onAdd }: AddMaterialFormProps) {
         setMaintenance(5);
         setComplexity(5);
         setWaterRes(5);
-        setHeat(5);
-        setCold(5);
-        setHumidity(5);
-        setUv(5);
+        setEnvironmentalStress(DEFAULT_ENVIRONMENTAL_STRESS_PROFILE);
         setSelectedApps([]);
     };
 
@@ -170,7 +176,7 @@ export function AddMaterialForm({ onAdd }: AddMaterialFormProps) {
                     <div className="space-y-3 border p-4 rounded-lg bg-slate-50">
                         <Label className="text-base font-semibold">Compatible Applications (Required)</Label>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {APPLICATIONS.map(app => (
+                            {MATERIAL_APPLICATIONS.map(app => (
                                 <div key={app} className="flex items-center space-x-2">
                                     <Checkbox id={app} checked={selectedApps.includes(app)} onCheckedChange={() => handleAppToggle(app)} />
                                     <Label htmlFor={app} className="font-normal text-xs">{app}</Label>
@@ -213,26 +219,23 @@ export function AddMaterialForm({ onAdd }: AddMaterialFormProps) {
                         </div>
                     </div>
 
-                    {/* Detailed Weather Resistance */}
+                    {/* Environmental Stress Profile */}
                     <div className="border-t pt-4">
-                        <Label className="block mb-4 font-semibold">Weather Resistance Profile (1-10)</Label>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="space-y-2">
-                                <Label className="text-xs">Heat</Label>
-                                <Input type="number" min={1} max={10} value={heat} onChange={e => setHeat(Number(e.target.value))} className="h-8" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs">Cold</Label>
-                                <Input type="number" min={1} max={10} value={cold} onChange={e => setCold(Number(e.target.value))} className="h-8" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs">Humidity</Label>
-                                <Input type="number" min={1} max={10} value={humidity} onChange={e => setHumidity(Number(e.target.value))} className="h-8" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs">UV/Sun</Label>
-                                <Input type="number" min={1} max={10} value={uv} onChange={e => setUv(Number(e.target.value))} className="h-8" />
-                            </div>
+                        <Label className="block mb-4 font-semibold">Environmental Stress Profile (1-10)</Label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {ENVIRONMENTAL_STRESS_FIELDS.map(({ id, label }) => (
+                                <div key={id} className="space-y-2">
+                                    <Label className="text-xs">{label}</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={10}
+                                        value={environmentalStress[id]}
+                                        onChange={(e) => updateEnvironmentalStress(id, Number(e.target.value))}
+                                        className="h-9"
+                                    />
+                                </div>
+                            ))}
                         </div>
                     </div>
 

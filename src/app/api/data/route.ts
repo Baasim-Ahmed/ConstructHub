@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { createMaterials, listMaterials } from "@/lib/material-ai/catalog";
+import { MATERIAL_APPLICATIONS } from "@/lib/material-ai/constants";
 import {
     CreateMaterialInput,
     CreateMaterialRequestBody,
@@ -42,9 +43,20 @@ function validateMaterialPayload(material: Partial<CreateMaterialInput>, index: 
     if (!material.supplier_id?.trim()) issues.push(`materials[${index}].supplier_id is required.`);
     if (!Array.isArray(material.applications) || material.applications.length === 0) {
         issues.push(`materials[${index}].applications must contain at least one value.`);
+    } else {
+        const unsupported = material.applications.filter((application) => !MATERIAL_APPLICATIONS.includes(application));
+        if (unsupported.length > 0) {
+            issues.push(`materials[${index}].applications contains unsupported values: ${unsupported.join(", ")}.`);
+        }
     }
     if (!material.weather_resistance) {
         issues.push(`materials[${index}].weather_resistance is required.`);
+    } else {
+        for (const key of ["heatUv", "airflow", "rain", "fire", "humidity"] as const) {
+            if (typeof material.weather_resistance[key] !== "number") {
+                issues.push(`materials[${index}].weather_resistance.${key} must be a number.`);
+            }
+        }
     }
 
     return issues;

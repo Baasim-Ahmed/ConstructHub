@@ -5,9 +5,16 @@ import {
     MaterialDataQuality,
     MaterialSanitizationIssue,
 } from "./types";
+import {
+    coerceMaterialApplication,
+    DEFAULT_APPLICATION,
+    DEFAULT_ENVIRONMENTAL_STRESS_PROFILE,
+    type EnvironmentalStressProfile,
+    type MaterialApplication,
+} from "./constants";
 
 const DEFAULT_LAST_UPDATED = "2026-05-10";
-const DEFAULT_APPLICATIONS = ["Structural"];
+const DEFAULT_APPLICATIONS: MaterialApplication[] = [DEFAULT_APPLICATION];
 const DEFAULT_CITY_AVAILABILITY = ["Karachi"];
 
 function clamp(value: number, min: number, max: number): number {
@@ -39,6 +46,22 @@ function normalizeStringArray(value: unknown, fallback: string[]): { value: stri
     return {
         value: deduped.length > 0 ? deduped : fallback,
         deduped: cleaned.length !== deduped.length,
+    };
+}
+
+function normalizeApplications(value: unknown): { value: MaterialApplication[]; deduped: boolean } {
+    if (!Array.isArray(value)) {
+        return { value: DEFAULT_APPLICATIONS, deduped: false };
+    }
+
+    const cleaned = value
+        .map((item) => typeof item === "string" ? coerceMaterialApplication(item) : null)
+        .filter((item): item is MaterialApplication => item !== null);
+    const deduped = Array.from(new Set(cleaned));
+
+    return {
+        value: deduped.length > 0 ? deduped : DEFAULT_APPLICATIONS,
+        deduped: cleaned.length !== deduped.length || cleaned.length !== value.length,
     };
 }
 
@@ -105,11 +128,11 @@ export function sanitizeMaterial(material: Partial<Material> | CreateMaterialInp
         pushIssue(issues, materialId, "type", "normalized_value", "Material type was normalized.", material.type, normalizedType);
     }
 
-    const applications = normalizeStringArray(material.applications, DEFAULT_APPLICATIONS);
+    const applications = normalizeApplications(material.applications);
     if (!Array.isArray(material.applications)) {
         pushIssue(issues, materialId, "applications", "missing_value", "Applications were missing and defaulted.", material.applications, applications.value);
     } else if (applications.deduped) {
-        pushIssue(issues, materialId, "applications", "deduplicated_list", "Duplicate applications were removed.", material.applications, applications.value);
+        pushIssue(issues, materialId, "applications", "deduplicated_list", "Unsupported or duplicate applications were normalized.", material.applications, applications.value);
     }
 
     const cities = normalizeStringArray(material.city_availability, DEFAULT_CITY_AVAILABILITY);
@@ -128,6 +151,22 @@ export function sanitizeMaterial(material: Partial<Material> | CreateMaterialInp
     const standardOrGrade = material.standard_or_grade ? normalizeString(material.standard_or_grade, "") || undefined : undefined;
     const unit = material.unit ? normalizeString(material.unit, "") || undefined : undefined;
     const lastUpdated = material.last_updated ? normalizeString(material.last_updated, DEFAULT_LAST_UPDATED) : DEFAULT_LAST_UPDATED;
+    const rawWeatherResistance = (material.weather_resistance ?? {}) as Record<string, unknown>;
+    const legacyHeat = finiteOrDefault(rawWeatherResistance.heat, DEFAULT_ENVIRONMENTAL_STRESS_PROFILE.heatUv);
+    const legacyUv = finiteOrDefault(rawWeatherResistance.uv, DEFAULT_ENVIRONMENTAL_STRESS_PROFILE.heatUv);
+    const derivedHeatUv = rawWeatherResistance.heatUv ?? rawWeatherResistance.heat_uv ?? rawWeatherResistance.sun ?? ((legacyHeat + legacyUv) / 2);
+    const derivedAirflow = rawWeatherResistance.airflow ?? rawWeatherResistance.wind ?? rawWeatherResistance.cold;
+    const derivedRain = rawWeatherResistance.rain ?? Math.max(finiteOrDefault(material.water_resistance, 5), finiteOrDefault(rawWeatherResistance.humidity, 5));
+    const derivedFire = rawWeatherResistance.fire ?? Math.max(legacyHeat, finiteOrDefault(material.fire_resistance_hours, 2) * 2);
+    const derivedHumidity = rawWeatherResistance.humidity;
+
+    const normalizedWeatherResistance: EnvironmentalStressProfile = {
+        heatUv: sanitizeClampedNumber(issues, materialId, "weather_resistance.heatUv", derivedHeatUv, DEFAULT_ENVIRONMENTAL_STRESS_PROFILE.heatUv, 0, 10),
+        airflow: sanitizeClampedNumber(issues, materialId, "weather_resistance.airflow", derivedAirflow, DEFAULT_ENVIRONMENTAL_STRESS_PROFILE.airflow, 0, 10),
+        rain: sanitizeClampedNumber(issues, materialId, "weather_resistance.rain", derivedRain, DEFAULT_ENVIRONMENTAL_STRESS_PROFILE.rain, 0, 10),
+        fire: sanitizeClampedNumber(issues, materialId, "weather_resistance.fire", derivedFire, DEFAULT_ENVIRONMENTAL_STRESS_PROFILE.fire, 0, 10),
+        humidity: sanitizeClampedNumber(issues, materialId, "weather_resistance.humidity", derivedHumidity, DEFAULT_ENVIRONMENTAL_STRESS_PROFILE.humidity, 0, 10),
+    };
 
     const sanitized: Material = {
         id: typeof material.id === "number" ? material.id : 0,
@@ -143,12 +182,7 @@ export function sanitizeMaterial(material: Partial<Material> | CreateMaterialInp
         cost_per_unit: sanitizeClampedNumber(issues, materialId, "cost_per_unit", material.cost_per_unit, 0, 0, 1_000_000_000),
         availability: sanitizeClampedNumber(issues, materialId, "availability", material.availability, 5, 0, 10),
         maintenance_requirement: sanitizeClampedNumber(issues, materialId, "maintenance_requirement", material.maintenance_requirement, 5, 0, 10),
-        weather_resistance: {
-            heat: sanitizeClampedNumber(issues, materialId, "weather_resistance.heat", material.weather_resistance?.heat, 5, 0, 10),
-            cold: sanitizeClampedNumber(issues, materialId, "weather_resistance.cold", material.weather_resistance?.cold, 5, 0, 10),
-            humidity: sanitizeClampedNumber(issues, materialId, "weather_resistance.humidity", material.weather_resistance?.humidity, 5, 0, 10),
-            uv: sanitizeClampedNumber(issues, materialId, "weather_resistance.uv", material.weather_resistance?.uv, 5, 0, 10),
-        },
+        weather_resistance: normalizedWeatherResistance,
         installation_complexity: sanitizeClampedNumber(issues, materialId, "installation_complexity", material.installation_complexity, 5, 0, 10),
         supplier_id: supplierId,
         supplier_name: supplierName,

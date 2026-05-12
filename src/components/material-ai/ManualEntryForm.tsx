@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { createMaterialCatalogEntry } from '@/lib/material-ai/client';
+import { DEFAULT_ENVIRONMENTAL_STRESS_PROFILE } from '@/lib/material-ai/constants';
 import { PlusCircle } from 'lucide-react';
 
 export function ManualEntryForm() {
@@ -35,7 +36,7 @@ export function ManualEntryForm() {
                 cost_per_unit: cost,
                 availability: 10,
                 maintenance_requirement: 5,
-                weather_resistance: { heat: 5, cold: 5, humidity: 5, uv: 5 },
+                weather_resistance: DEFAULT_ENVIRONMENTAL_STRESS_PROFILE,
                 installation_complexity: 5,
                 supplier_id: 'MANUAL',
             });
