@@ -300,6 +300,7 @@ export default function TasksPage() {
   };
 
   const columns = ['PENDING', 'IN_PROGRESS', 'BLOCKED', 'COMPLETED'];
+  const isListView = viewMode === 'list';
 
   const getTasksByStatus = (status: string) => tasks.filter(task => task.status === status);
 
@@ -340,19 +341,21 @@ export default function TasksPage() {
       >
         <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
           <Button
-            variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+            variant={isListView ? 'secondary' : 'ghost'}
             size="sm"
-            className={`h-8 px-3 ${viewMode === 'list' ? 'shadow-sm bg-white' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`h-8 px-3 ${isListView ? 'shadow-sm bg-white' : 'text-slate-500 hover:text-slate-700'}`}
             onClick={() => setViewMode('list')}
+            aria-pressed={isListView}
           >
             <List className="h-4 w-4 mr-2" />
             List
           </Button>
           <Button
-            variant={viewMode === 'board' ? 'secondary' : 'ghost'}
+            variant={!isListView ? 'secondary' : 'ghost'}
             size="sm"
-            className={`h-8 px-3 ${viewMode === 'board' ? 'shadow-sm bg-white' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`h-8 px-3 ${!isListView ? 'shadow-sm bg-white' : 'text-slate-500 hover:text-slate-700'}`}
             onClick={() => setViewMode('board')}
+            aria-pressed={!isListView}
           >
             <LayoutGrid className="h-4 w-4 mr-2" />
             Board
@@ -360,7 +363,7 @@ export default function TasksPage() {
         </div>
       </PageHeader>
 
-      {viewMode === 'list' ? (
+      {isListView ? (
         <Tabs defaultValue="ALL" onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-5 max-w-2xl mb-8 bg-slate-100 p-1 rounded-xl">
             <TabsTrigger value="ALL">All</TabsTrigger>
